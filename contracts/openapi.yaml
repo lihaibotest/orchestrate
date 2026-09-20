@@ -1,0 +1,90 @@
+openapi: 3.1.0
+info:
+  title: Execution Orchestrator API
+  version: 0.1.0
+  description: Initial coding contract. Endpoint field details remain subject to TBD-01/TBD-08 and source design review.
+paths:
+  /v1/workflow-families:
+    post:
+      operationId: createWorkflowFamily
+      parameters:
+        - in: header
+          name: X-Correlation-Id
+          schema: {type: string}
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, task_id, plan]
+              properties:
+                tenant_id: {type: string}
+                task_id: {type: string}
+                plan: {type: object}
+                completion_criteria: {type: object}
+      responses:
+        '201': {description: Created}
+  /v1/workflow-families/{family_id}/versions:
+    post:
+      operationId: buildWorkflowVersion
+      parameters:
+        - {in: path, name: family_id, required: true, schema: {type: string}}
+        - {in: header, name: Idempotency-Key, required: true, schema: {type: string}}
+      responses:
+        '201': {description: Version created; immutable after creation according to lifecycle rules}
+  /v1/workflow-families/{family_id}/versions/{version}/self-test:
+    post:
+      operationId: runSelfTest
+      parameters:
+        - {in: path, name: family_id, required: true, schema: {type: string}}
+        - {in: path, name: version, required: true, schema: {type: integer}}
+      responses:
+        '202': {description: Self-test started}
+  /v1/workflow-families/{family_id}/versions/{version}/publish:
+    post:
+      operationId: publishWorkflowVersion
+      description: Must reject unless release gate S0-S4 is satisfied.
+      parameters:
+        - {in: path, name: family_id, required: true, schema: {type: string}}
+        - {in: path, name: version, required: true, schema: {type: integer}}
+        - {in: header, name: Idempotency-Key, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Published}
+        '409': {description: Release gate not satisfied}
+  /v1/executions:
+    post:
+      operationId: createExecution
+      parameters:
+        - {in: header, name: Idempotency-Key, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, workflow_family_id, workflow_version]
+              properties:
+                tenant_id: {type: string}
+                workflow_family_id: {type: string}
+                workflow_version: {type: integer}
+                client_request_id: {type: string}
+      responses:
+        '201': {description: Execution created}
+        '409': {description: Workflow not publishable/published}
+  /v1/executions/{execution_id}:
+    get:
+      operationId: getExecution
+      parameters:
+        - {in: path, name: execution_id, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Execution status}
+  /v1/runtime-events:
+    post:
+      operationId: ingestRuntimeEvent
+      responses:
+        '202': {description: Accepted idempotently}

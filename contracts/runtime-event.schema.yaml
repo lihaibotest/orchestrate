@@ -1,0 +1,21 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: RuntimeEvent
+type: object
+required: [event_id, event_type, execution_id, workflow_version, timestamp]
+properties:
+  event_id: {type: string}
+  event_type: {type: string}
+  timestamp: {type: string, format: date-time}
+  correlation_id: {type: [string, 'null']}
+  trace_id: {type: [string, 'null']}
+  request_id: {type: [string, 'null']}
+  execution_id: {type: string}
+  workflow_version: {type: integer}
+  node_id: {type: [string, 'null']}
+  agent_id: {type: [string, 'null']}
+  attempt: {type: [integer, 'null']}
+  duration_ms: {type: [integer, 'null'], minimum: 0}
+  artifact_refs: {type: array, items: {type: string}}
+  checkpoint_ref: {type: [string, 'null']}
+  error_code: {type: [string, 'null']}
+  payload: {type: object}

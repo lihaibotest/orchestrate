@@ -1,0 +1,18 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: ContextEvent
+type: object
+required: [event_id, event_type, payload, timestamp]
+properties:
+  event_id: {type: string, minLength: 1}
+  event_type:
+    type: string
+    enum: [WORKFLOW_VERSION_CREATED, WORKFLOW_SELF_TESTED, EXECUTION_STARTED, NODE_STATE_CHANGED, NODE_EVALUATED, ARTIFACT_REGISTERED, CHECKPOINT_CREATED, WORKFLOW_REPAIR_APPLIED, WORKFLOW_COMPLETED, MEMORY_SUMMARY_UPDATED]
+  timestamp: {type: string, format: date-time}
+  execution_id: {type: [string, 'null']}
+  workflow_version: {type: [integer, 'null']}
+  node_id: {type: [string, 'null']}
+  agent_id: {type: [string, 'null']}
+  trace_id: {type: [string, 'null']}
+  request_id: {type: [string, 'null']}
+  error_code: {type: [string, 'null']}
+  payload: {type: object}
