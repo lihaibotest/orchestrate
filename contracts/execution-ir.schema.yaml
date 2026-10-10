@@ -1,52 +1,267 @@
 $schema: https://json-schema.org/draft/2020-12/schema
+$id: execution-ir.v1
 title: ExecutionIR
 type: object
 additionalProperties: false
-required: [ir_version, workflow_family_id, workflow_version, task_id, registry_snapshot_id, nodes, edges, completion_criteria]
+required:
+  - ir_version
+  - workflow_family_id
+  - workflow_version
+  - task_id
+  - registry_snapshot_id
+  - nodes
+  - edges
+  - artifacts
+  - checkpoints
+  - recovery
+  - completion_criteria
 properties:
-  ir_version: {type: string}
-  workflow_family_id: {type: string, minLength: 1}
-  workflow_version: {type: integer, minimum: 1}
-  task_id: {type: string, minLength: 1}
-  registry_snapshot_id: {type: string, minLength: 1}
-  context_view_id: {type: [string, 'null']}
+  ir_version:
+    const: "1.0"
+  workflow_family_id:
+    type: string
+    minLength: 1
+  workflow_version:
+    type: integer
+    minimum: 1
+  task_id:
+    type: string
+    minLength: 1
+  registry_snapshot_id:
+    type: string
+    minLength: 1
+  context_view_id:
+    type: [string, "null"]
+    minLength: 1
   nodes:
     type: array
     minItems: 1
     items:
-      type: object
-      additionalProperties: false
-      required: [node_id, name, agent_binding, depends_on, input_contract, output_contract, completion_criteria, artifact_policy]
-      properties:
-        node_id: {type: string, minLength: 1}
-        name: {type: string, minLength: 1}
-        type: {type: string, enum: [invoke_agent, load_artifact, store_artifact, evaluate, checkpoint, decision, join, wait, end]}
-        agent_binding:
-          type: object
-          description: Must resolve exclusively from Registry Snapshot; credential_ref only, never secret.
-          additionalProperties: true
-        depends_on: {type: array, items: {type: string}, uniqueItems: true}
-        input_contract: {type: object}
-        output_contract: {type: object}
-        completion_criteria: {type: object}
-        artifact_policy: {type: object}
-        checkpoint_policy: {type: object}
-        retry_policy: {type: object}
-        monitor_policy: {type: object}
+      $ref: "#/$defs/node"
   edges:
     type: array
     items:
-      type: object
-      required: [from, to]
-      properties:
-        from: {type: string}
-        to: {type: string}
-  artifacts: {type: array, items: {type: object}}
-  checkpoints: {type: array, items: {type: object}}
+      $ref: "#/$defs/edge"
+  artifacts:
+    type: array
+    items:
+      $ref: "#/$defs/artifact"
+  checkpoints:
+    type: array
+    items:
+      $ref: "#/$defs/checkpoint"
+  recovery:
+    $ref: "#/$defs/recovery"
+  completion_criteria:
+    type: object
+$defs:
+  jsonSchema:
+    type: object
+  dataContract:
+    type: object
+    additionalProperties: false
+    required: [schema, sources]
+    properties:
+      schema:
+        $ref: "#/$defs/jsonSchema"
+      sources:
+        type: object
+        additionalProperties:
+          type: string
+          minLength: 1
+  agentBinding:
+    type: object
+    additionalProperties: false
+    description: All values must resolve exactly from registry_snapshot_id; credential values are forbidden.
+    required:
+      - registry_snapshot_id
+      - requirement_id
+      - agent_id
+      - version
+      - endpoint
+      - capability
+      - input_schema
+      - output_schema
+      - credential_ref
+    properties:
+      registry_snapshot_id: {type: string, minLength: 1}
+      requirement_id: {type: string, minLength: 1}
+      agent_id: {type: string, minLength: 1}
+      version: {type: string, minLength: 1}
+      endpoint: {type: string, minLength: 1}
+      capability: {type: string, minLength: 1}
+      input_schema:
+        $ref: "#/$defs/jsonSchema"
+      output_schema:
+        $ref: "#/$defs/jsonSchema"
+      credential_ref: {type: string, minLength: 1}
+  artifactPolicy:
+    type: object
+    additionalProperties: false
+    required: [produces, consumes, registration_required, reuse_allowed]
+    properties:
+      produces:
+        type: array
+        uniqueItems: true
+        items: {type: string, minLength: 1}
+      consumes:
+        type: array
+        uniqueItems: true
+        items: {type: string, minLength: 1}
+      registration_required: {type: boolean}
+      reuse_allowed: {type: boolean}
+  checkpointPolicy:
+    type: object
+    additionalProperties: false
+    required: [enabled, required_artifacts]
+    properties:
+      enabled: {type: boolean}
+      required_artifacts:
+        type: array
+        uniqueItems: true
+        items: {type: string, minLength: 1}
+  retryPolicy:
+    type: object
+    additionalProperties: false
+    required: [max_retries, backoff_seconds, timeout_seconds]
+    properties:
+      max_retries: {type: integer, minimum: 0}
+      backoff_seconds: {type: integer, minimum: 0}
+      timeout_seconds: {type: [integer, "null"], minimum: 1}
+  monitorPolicy:
+    type: object
+    additionalProperties: false
+    required: [heartbeat_required, runtime_events_required, timeout_seconds]
+    properties:
+      heartbeat_required: {type: boolean}
+      runtime_events_required: {type: boolean}
+      timeout_seconds: {type: [integer, "null"], minimum: 1}
+  node:
+    type: object
+    additionalProperties: false
+    required:
+      - node_id
+      - name
+      - type
+      - agent_binding
+      - depends_on
+      - input_contract
+      - output_contract
+      - completion_criteria
+      - artifact_policy
+      - checkpoint_policy
+      - retry_policy
+      - monitor_policy
+    properties:
+      node_id: {type: string, minLength: 1}
+      name: {type: string, minLength: 1}
+      type:
+        type: string
+        enum:
+          - invoke_agent
+          - load_artifact
+          - store_artifact
+          - evaluate
+          - checkpoint
+          - decision
+          - join
+          - wait
+          - end
+      agent_binding:
+        oneOf:
+          - $ref: "#/$defs/agentBinding"
+          - type: "null"
+      depends_on:
+        type: array
+        uniqueItems: true
+        items: {type: string, minLength: 1}
+      input_contract:
+        $ref: "#/$defs/dataContract"
+      output_contract:
+        $ref: "#/$defs/dataContract"
+      completion_criteria:
+        type: object
+      artifact_policy:
+        $ref: "#/$defs/artifactPolicy"
+      checkpoint_policy:
+        oneOf:
+          - $ref: "#/$defs/checkpointPolicy"
+          - type: "null"
+      retry_policy:
+        oneOf:
+          - $ref: "#/$defs/retryPolicy"
+          - type: "null"
+      monitor_policy:
+        oneOf:
+          - $ref: "#/$defs/monitorPolicy"
+          - type: "null"
+  edge:
+    type: object
+    additionalProperties: false
+    required: [from, to]
+    properties:
+      from: {type: string, minLength: 1}
+      to: {type: string, minLength: 1}
+  artifact:
+    type: object
+    additionalProperties: false
+    required:
+      - artifact_id
+      - producer_node_id
+      - output_name
+      - artifact_type
+      - media_type
+      - schema_ref
+      - schema
+      - required
+      - min_size_bytes
+      - max_size_bytes
+      - reusable
+      - uri
+      - content_hash
+      - input_fingerprint
+      - permission_scope
+    properties:
+      artifact_id: {type: string, minLength: 1}
+      producer_node_id: {type: [string, "null"], minLength: 1}
+      output_name: {type: string, minLength: 1}
+      artifact_type: {type: string, minLength: 1}
+      media_type: {type: string, minLength: 1}
+      schema_ref: {type: [string, "null"], minLength: 1}
+      schema:
+        $ref: "#/$defs/jsonSchema"
+      required: {type: boolean}
+      min_size_bytes: {type: [integer, "null"], minimum: 0}
+      max_size_bytes: {type: [integer, "null"], minimum: 0}
+      reusable: {type: boolean}
+      uri: {type: [string, "null"], minLength: 1}
+      content_hash: {type: [string, "null"], minLength: 1}
+      input_fingerprint: {type: [string, "null"], minLength: 1}
+      permission_scope: {type: [string, "null"], minLength: 1}
+  checkpoint:
+    type: object
+    additionalProperties: false
+    required: [checkpoint_id, node_id, artifact_ids, trusted, input_fingerprint]
+    properties:
+      checkpoint_id: {type: string, minLength: 1}
+      node_id: {type: string, minLength: 1}
+      artifact_ids:
+        type: array
+        uniqueItems: true
+        items: {type: string, minLength: 1}
+      trusted: {type: boolean}
+      input_fingerprint: {type: [string, "null"], minLength: 1}
   recovery:
     type: object
+    additionalProperties: false
+    required: [resume_root, reused_nodes, invalidated_nodes]
     properties:
-      resume_root: {type: [string, 'null']}
-      reused_nodes: {type: array, items: {type: string}}
-      invalidated_nodes: {type: array, items: {type: string}}
-  completion_criteria: {type: object}
+      resume_root: {type: [string, "null"], minLength: 1}
+      reused_nodes:
+        type: array
+        uniqueItems: true
+        items: {type: string, minLength: 1}
+      invalidated_nodes:
+        type: array
+        uniqueItems: true
+        items: {type: string, minLength: 1}

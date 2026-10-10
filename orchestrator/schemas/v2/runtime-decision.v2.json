@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:runtime-decision:v2",
+  "title": "RuntimeDecisionV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "correlation_id", "session_id", "plan_version", "workflow_version", "idempotency_key", "decision_id", "event_id", "execution_id", "node_id", "action", "reason_code"],
+  "properties": {
+    "schema_version": {"const": "runtime-decision.v2"}, "correlation_id": {"$ref": "#/$defs/id"}, "session_id": {"$ref": "#/$defs/id"}, "plan_version": {"type": "integer", "minimum": 1}, "workflow_version": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 256},
+    "decision_id": {"$ref": "#/$defs/id"}, "event_id": {"$ref": "#/$defs/id"}, "execution_id": {"$ref": "#/$defs/id"}, "node_id": {"$ref": "#/$defs/id"},
+    "action": {"enum": ["CONTINUE", "RETRY", "WAIT", "FAIL", "REQUEST_EVALUATION", "PATCH", "REPLAN", "ABORT"]},
+    "reason_code": {"type": "string", "minLength": 1, "maxLength": 128}, "route": {"type": "string", "maxLength": 128}, "wait_seconds": {"type": "integer", "minimum": 0, "maximum": 86400}
+  },
+  "$defs": {"id": {"type": "string", "minLength": 1, "maxLength": 256}}
+}

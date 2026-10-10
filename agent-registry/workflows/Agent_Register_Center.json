@@ -1,0 +1,120 @@
+{
+  "name": "Agent_Register_Center",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-register",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "agent-register-webhook",
+      "name": "Agent注册入口",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "agent-register"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json.body ?? $json;\nconst agentId = String(input.agent_id ?? '').trim();\nconst allowed = {\n  agent_filter_library: { endpoint: 'http://filter-library-api:8000/api/cases/query', health_url: 'http://filter-library-api:8000/health' },\n  agent_wordagent: { endpoint: 'http://wordagent:4324/generate/json', health_url: 'http://wordagent:4324/health' },\n  agent_pytestproject: { endpoint: 'http://pytestproject:5000/api/pytest/run', health_url: 'http://pytestproject:5000/api/health' },\n  agent_reportagent: { endpoint: 'http://reportagent:6000/api/generate', health_url: 'http://reportagent:6000/api/health' },\n};\nconst expected = allowed[agentId];\nif (!expected || String(input.endpoint ?? '') !== expected.endpoint || String(input.health_url ?? '') !== expected.health_url) throw new Error('agent endpoint or health_url is not allowlisted');\nconst agentName = String(input.agent_name ?? '').trim();\nconst agentType = String(input.agent_type ?? '').trim();\nconst capabilities = [...new Set((Array.isArray(input.capabilities) ? input.capabilities : []).map(String).map(v => v.trim()).filter(Boolean))];\nif (!agentName || !agentType || capabilities.length === 0) throw new Error('agent_name, agent_type and capabilities are required');\nconst logPath = input.log_path && typeof input.log_path === 'object' && !Array.isArray(input.log_path) ? input.log_path : {};\nconst logFile = String(logPath.log_file ?? '').trim();\nif (Object.keys(logPath).length > 0 && !logFile) throw new Error('log_path.log_file is required when log_path is provided');\nconst now = new Date().toISOString();\nreturn [{ json: {\n  agent_id: agentId, agent_name: agentName, agent_type: agentType,\n  description: String(input.description ?? ''), endpoint: expected.endpoint,\n  health_url: expected.health_url, capabilities_json: JSON.stringify({ list: capabilities }),\n  intents_json: JSON.stringify(Array.isArray(input.intents) ? input.intents : []),\n  metadata_json: JSON.stringify(input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata) ? input.metadata : {}),\n  flag: Number.isInteger(Number(input.flag)) ? Number(input.flag) : 0,\n  log_path_json: JSON.stringify(logFile ? { ...logPath, log_file: logFile } : {}),\n  priority: Number.isInteger(Number(input.priority)) ? Number(input.priority) : 100,\n  weight: Number.isInteger(Number(input.weight)) ? Number(input.weight) : 100,\n  heartbeat_ttl_seconds: Math.max(30, Number(input.heartbeat_ttl_seconds ?? 300)),\n  status: ['active','disabled','pending_verification'].includes(input.status) ? input.status : 'active',\n  llm_model: input.llm_model ? String(input.llm_model) : null,\n  system_prompt: input.system_prompt ? String(input.system_prompt) : null,\n  n8n_workflow_id: input.n8n_workflow_id ? String(input.n8n_workflow_id) : null, now\n} }];"
+      },
+      "id": "normalize-agent-registration",
+      "name": "验证并标准化数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.registered_agents (agent_id, agent_name, agent_type, description, endpoint, health_url, llm_model, system_prompt, capabilities, intents, priority, weight, heartbeat_ttl_seconds, metadata, flag, log_path, status, registered_at, last_heartbeat, n8n_workflow_id, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13,$14::jsonb,$15,$16::jsonb,$17,$18::timestamptz,$18::timestamptz,$19,$18::timestamptz) ON CONFLICT (agent_id) DO UPDATE SET agent_name=EXCLUDED.agent_name, agent_type=EXCLUDED.agent_type, description=EXCLUDED.description, endpoint=EXCLUDED.endpoint, health_url=EXCLUDED.health_url, llm_model=EXCLUDED.llm_model, system_prompt=EXCLUDED.system_prompt, capabilities=EXCLUDED.capabilities, intents=EXCLUDED.intents, priority=EXCLUDED.priority, weight=EXCLUDED.weight, heartbeat_ttl_seconds=EXCLUDED.heartbeat_ttl_seconds, metadata=EXCLUDED.metadata, flag=EXCLUDED.flag, log_path=EXCLUDED.log_path, status=EXCLUDED.status, last_heartbeat=EXCLUDED.last_heartbeat, n8n_workflow_id=EXCLUDED.n8n_workflow_id, updated_at=EXCLUDED.updated_at RETURNING agent_id, agent_name, agent_type, endpoint, health_url, capabilities, intents, priority, weight, heartbeat_ttl_seconds, metadata, flag, log_path, status, registered_at, last_heartbeat, updated_at;",
+        "options": {
+          "queryReplacement": "={{ [$json.agent_id,$json.agent_name,$json.agent_type,$json.description,$json.endpoint,$json.health_url,$json.llm_model,$json.system_prompt,$json.capabilities_json,$json.intents_json,$json.priority,$json.weight,$json.heartbeat_ttl_seconds,$json.metadata_json,$json.flag,$json.log_path_json,$json.status,$json.now,$json.n8n_workflow_id] }}"
+        }
+      },
+      "id": "upsert-agent-postgres",
+      "name": "Upsert Agent Registry",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        740,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "agentRegistryPostgres20260819",
+          "name": "Agent Registry PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, agent: $json } }}",
+        "options": {}
+      },
+      "id": "respond-agent-registration",
+      "name": "返回注册成功",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1020,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Agent注册入口": {
+      "main": [
+        [
+          {
+            "node": "验证并标准化数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证并标准化数据": {
+      "main": [
+        [
+          {
+            "node": "Upsert Agent Registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Agent Registry": {
+      "main": [
+        [
+          {
+            "node": "返回注册成功",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "agentRegistryRegister20260819"
+}

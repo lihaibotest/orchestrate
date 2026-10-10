@@ -1,0 +1,89 @@
+{
+  "name": "orchestrator-v2-four-agent-chain",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "orchestrator-v2-four-agent-chain",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "orchestrator-v2-webhook",
+      "name": "Orchestrator V2 Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "orchestrator-v2-four-agent-chain"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://filter-library-api:8000/api/cases/query",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: $json.body && $json.body.query ? $json.body.query : $json.query } }}",
+        "options": {}
+      },
+      "id": "agent-filter-library",
+      "name": "agent_filter_library",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://wordagent:4324/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { user_intent: '生成登录模块标准测试项和测试用例', item_filepath: '/app/wordagent/data/input/test_items.json', case_filepath: '/app/wordagent/data/input/test_cases.json', filter_items: true } }}",
+        "options": {}
+      },
+      "id": "agent-wordagent",
+      "name": "agent_wordagent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://pytestproject:5000/api/pytest/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { test_path: 'runtime/test_login.py', timeout: 60, generate_allure: true, use_xvfb: true } }}",
+        "options": {}
+      },
+      "id": "agent-pytestproject",
+      "name": "agent_pytestproject",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://reportagent:6000/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {} }}",
+        "options": {}
+      },
+      "id": "agent-reportagent",
+      "name": "agent_reportagent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, 0]
+    }
+  ],
+  "connections": {
+    "Orchestrator V2 Webhook": {"main": [[{"node": "agent_filter_library", "type": "main", "index": 0}]]},
+    "agent_filter_library": {"main": [[{"node": "agent_wordagent", "type": "main", "index": 0}]]},
+    "agent_wordagent": {"main": [[{"node": "agent_pytestproject", "type": "main", "index": 0}]]},
+    "agent_pytestproject": {"main": [[{"node": "agent_reportagent", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "all"},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": true},
+  "id": "orchestratorV2FourAgentChain20260820"
+}

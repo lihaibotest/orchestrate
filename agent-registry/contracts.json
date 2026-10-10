@@ -1,0 +1,44 @@
+{
+  "contract_version": "agent-registry-portable.v1",
+  "project_identity_env": "COMPOSE_PROJECT_NAME",
+  "protected_source_id": "agent-offline-bundle-20260625-portable-portable-portable",
+  "protected_source_markers": [
+    "docker-compose.yml",
+    "start.sh",
+    "sources/orchestrator-agent/workflows"
+  ],
+  "source_content_sha256": "",
+  "host_bind_env": "HOST_BIND",
+  "registry_network_env": "REGISTRY_NETWORK_NAME",
+  "services": [
+    "postgres",
+    "n8n",
+    "wordagent",
+    "pytestproject",
+    "reportagent",
+    "filter-library-api",
+    "filter-library-ui"
+  ],
+  "agents": [
+    "agent_filter_library",
+    "agent_wordagent",
+    "agent_pytestproject",
+    "agent_reportagent"
+  ],
+  "workflows": [
+    "Agent_Register_Center.json",
+    "agent-registry-query.json",
+    "agent-heartbeat.json",
+    "agent-health-monitor.json",
+    "agent-registry-maintenance.json"
+  ],
+  "ports": {
+    "postgres": 25432,
+    "n8n": 25678,
+    "wordagent": 24324,
+    "pytestproject": 25000,
+    "reportagent": 26000,
+    "filter-library-api": 28482,
+    "filter-library-ui": 28483
+  }
+}

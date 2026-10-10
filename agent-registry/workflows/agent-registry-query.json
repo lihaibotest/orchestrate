@@ -1,0 +1,118 @@
+{
+  "name": "agent-registry-query",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "agent-registry-candidates",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "agent-registry-candidates",
+      "id": "agent-registry-query-webhook",
+      "name": "Agent Registry Query Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT agent_id, agent_name, agent_type, endpoint, health_url, capabilities, intents, priority, weight, heartbeat_ttl_seconds, metadata, flag, log_path, status, n8n_workflow_id, registered_at, last_heartbeat, updated_at FROM public.registered_agents WHERE status = 'active' AND endpoint IS NOT NULL AND (expires_at IS NULL OR expires_at > NOW()) AND (last_heartbeat IS NULL OR last_heartbeat + (heartbeat_ttl_seconds * INTERVAL '1 second') > NOW()) ORDER BY priority ASC, weight DESC, last_heartbeat DESC NULLS LAST, agent_id ASC;",
+        "options": {}
+      },
+      "id": "select-active-registered-agents",
+      "name": "Select Active Registered Agents",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        520,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "agentRegistryPostgres20260819",
+          "name": "Agent Registry PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(item => { const row = item.json ?? {}; const caps = row.capabilities?.list ?? row.capabilities ?? []; return { ...row, capabilities: Array.isArray(caps) ? caps : [], intents: Array.isArray(row.intents) ? row.intents : [], metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : {}, flag: Number.isFinite(Number(row.flag)) ? Number(row.flag) : 0, log_path: row.log_path && typeof row.log_path === 'object' ? row.log_path : {}, status: row.status ?? 'active' }; }); return [{ json: { items } }];"
+      },
+      "id": "normalize-active-registered-agents",
+      "name": "Normalize Active Registered Agents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-active-registered-agents",
+      "name": "Respond Active Registered Agents",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Agent Registry Query Webhook": {
+      "main": [
+        [
+          {
+            "node": "Select Active Registered Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Active Registered Agents": {
+      "main": [
+        [
+          {
+            "node": "Normalize Active Registered Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Active Registered Agents": {
+      "main": [
+        [
+          {
+            "node": "Respond Active Registered Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "agentRegistryQuery20260819"
+}

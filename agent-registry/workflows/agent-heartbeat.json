@@ -1,0 +1,120 @@
+{
+  "name": "agent-heartbeat",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-heartbeat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "agent-heartbeat",
+      "id": "agent-heartbeat-webhook",
+      "name": "Agent Heartbeat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst agentId = String(body.agent_id ?? '').trim();\nif (!agentId) throw new Error('agent_id is required');\nreturn [{json:{agent_id:agentId,status:body.status === 'disabled' ? 'disabled' : 'active',last_error:body.last_error ? String(body.last_error) : null,now:new Date().toISOString()}}];"
+      },
+      "id": "normalize-heartbeat",
+      "name": "Normalize Heartbeat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.registered_agents SET status=$2, last_heartbeat=$3::timestamptz, updated_at=$3::timestamptz, expires_at=CASE WHEN $2='active' THEN GREATEST(expires_at,$3::timestamptz + INTERVAL '30 days') ELSE expires_at END, failure_count=CASE WHEN $2='active' THEN 0 ELSE failure_count+1 END, last_error=$4 WHERE agent_id=$1 RETURNING agent_id, agent_name, agent_type, status, endpoint, last_heartbeat, expires_at, updated_at;",
+        "options": {
+          "queryReplacement": "={{ [$json.agent_id,$json.status,$json.now,$json.last_error] }}"
+        }
+      },
+      "id": "update-agent-heartbeat",
+      "name": "Update Agent Heartbeat",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        740,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "agentRegistryPostgres20260819",
+          "name": "Agent Registry PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, agent: $json } }}",
+        "options": {}
+      },
+      "id": "respond-heartbeat",
+      "name": "Respond Heartbeat",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Agent Heartbeat Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Heartbeat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Heartbeat": {
+      "main": [
+        [
+          {
+            "node": "Update Agent Heartbeat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Agent Heartbeat": {
+      "main": [
+        [
+          {
+            "node": "Respond Heartbeat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "agentRegistryHeartbeat20260819"
+}

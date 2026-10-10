@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:capability-registry:v2",
+  "title": "CapabilityRegistryV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "snapshot_id", "snapshot_version", "candidates"],
+  "properties": {
+    "schema_version": {"const": "capability-registry.v2"},
+    "snapshot_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "snapshot_version": {"type": "integer", "minimum": 1},
+    "candidates": {"type": "array", "minItems": 1, "maxItems": 1024, "items": {"$ref": "#/$defs/candidate"}}
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_id", "role", "capabilities", "health", "endpoint", "input_schema", "output_schema", "contract_version", "n8n_credential_ref", "dry_run_supported", "side_effect", "idempotency_supported", "usage_reporting", "security_scopes", "backends", "cost_microusd", "latency_ms"],
+      "properties": {
+        "agent_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "role": {"enum": ["business", "evaluator"]},
+        "capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+        "health": {"enum": ["healthy", "degraded", "unhealthy"]},
+        "endpoint": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "input_schema": {"type": "object"},
+        "output_schema": {"type": "object"},
+        "contract_version": {"type": "string", "minLength": 1, "maxLength": 128},
+        "n8n_credential_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "dry_run_supported": {"type": "boolean"},
+        "side_effect": {"enum": ["read_only", "idempotent_write", "non_idempotent_write", "external_transaction"]},
+        "idempotency_supported": {"type": "boolean"},
+        "usage_reporting": {"type": "boolean"},
+        "security_scopes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+        "backends": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+        "cost_microusd": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+        "latency_ms": {"type": "integer", "minimum": 0, "maximum": 86400000}
+      }
+    }
+  }
+}

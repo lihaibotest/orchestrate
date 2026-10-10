@@ -1,0 +1,15 @@
+DROP TRIGGER IF EXISTS workflow_version_immutable ON workflow_version;
+DROP TRIGGER IF EXISTS registry_snapshot_immutable ON registry_snapshot;
+DROP FUNCTION IF EXISTS reject_immutable_row_update();
+DROP TABLE IF EXISTS state_transition_history;
+DROP TABLE IF EXISTS context_outbox;
+DROP TABLE IF EXISTS runtime_event;
+DROP TABLE IF EXISTS self_test_run;
+DROP TABLE IF EXISTS checkpoint;
+DROP TABLE IF EXISTS artifact_ref;
+DROP TABLE IF EXISTS node_attempt;
+DROP TABLE IF EXISTS node_execution;
+DROP TABLE IF EXISTS execution;
+DROP TABLE IF EXISTS workflow_version;
+DROP TABLE IF EXISTS registry_snapshot;
+DROP TABLE IF EXISTS workflow_family;

@@ -1,0 +1,71 @@
+{
+  "name": "agent-registry-maintenance",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "registry-maintenance-schedule",
+      "name": "Registry Maintenance Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.registered_agents SET status='stale', updated_at=NOW(), last_error='heartbeat timeout' WHERE status='active' AND last_heartbeat IS NOT NULL AND last_heartbeat + (heartbeat_ttl_seconds * INTERVAL '1 second') <= NOW() RETURNING agent_id, agent_name, last_heartbeat, heartbeat_ttl_seconds;",
+        "options": {}
+      },
+      "id": "expire-stale-agents",
+      "name": "Expire Stale Agents",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        560,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "agentRegistryPostgres20260819",
+          "name": "Agent Registry PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Registry Maintenance Schedule": {
+      "main": [
+        [
+          {
+            "node": "Expire Stale Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "agentRegistryMaintenance20260819"
+}

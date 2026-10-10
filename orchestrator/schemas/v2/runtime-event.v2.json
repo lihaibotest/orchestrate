@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:runtime-event:v2",
+  "title": "RuntimeEventV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "correlation_id", "session_id", "plan_version", "workflow_version", "idempotency_key", "event_id", "execution_id", "node_id", "attempt", "event_type", "usage", "checkpoint"],
+  "properties": {
+    "schema_version": {"const": "runtime-event.v2"}, "correlation_id": {"$ref": "#/$defs/id"}, "session_id": {"$ref": "#/$defs/id"}, "plan_version": {"type": "integer", "minimum": 1}, "workflow_version": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 256},
+    "event_id": {"$ref": "#/$defs/id"}, "execution_id": {"$ref": "#/$defs/id"}, "node_id": {"$ref": "#/$defs/id"}, "attempt": {"type": "integer", "minimum": 1, "maximum": 100},
+    "event_type": {"enum": ["attempt_started", "attempt_completed", "attempt_failed", "checkpoint"]},
+    "reservation_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "usage": {"type": "object", "additionalProperties": false, "required": ["calls_delta", "duration_ms_delta", "cost_microusd"], "properties": {"calls_delta": {"type": "integer", "minimum": 0, "maximum": 100000}, "duration_ms_delta": {"type": "integer", "minimum": 0, "maximum": 86400000}, "cost_microusd": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807}}},
+    "checkpoint": {"type": "object"}, "failure": {"type": "object"}, "metrics": {"type": "object"}
+  },
+  "$defs": {"id": {"type": "string", "minLength": 1, "maxLength": 256}}
+}

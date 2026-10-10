@@ -1,0 +1,50 @@
+{
+  "manifest_version": "orchestrator-agent-package.v1",
+  "package_id": "orchestrator-agent",
+  "version": "1.1.0",
+  "release_channel": "development",
+  "artifact_signing": false,
+  "services": ["orchestrator-agent", "planning-agent", "orchestrator-gateway"],
+  "external_dependencies": ["n8n", "workflow-llm"],
+  "images": [
+    {"tag": "orchestrator-agent-standalone:1.1.0", "archive": "artifacts/images/orchestrator-agent-1.1.0.tar"},
+    {"tag": "portable/planning-agent-stub:1.0.0", "archive": "artifacts/images/planning-agent-stub-1.0.0.tar"},
+    {"tag": "portable/orchestrator-gateway:1.0.0", "archive": "artifacts/images/orchestrator-gateway-1.0.0.tar"}
+  ],
+  "automatic_start": {
+    "trigger": "n8n webhook",
+    "after": ["inactive workflow creation", "workflow activation"],
+    "payload": "blueprint envelope plus workflow_id",
+    "manual_n8n_execute_required": false
+  },
+  "allowed_artifact_paths": ["backend", "docs", "scripts", "schemas", "docker-compose.yml", ".dockerignore", ".env.example", "README.md", "manifest.json"],
+  "development_only_paths": [],
+  "excluded_services": ["n8n", "postgres", "minio", "test-case-agent", "execution-agent", "case-library", "test-item-library", "frontend"],
+  "source_authority": {
+    "orchestrator_backend": "overrides/orchestrator-agent/backend"
+  },
+  "runtime_security": {
+    "non_root_uid": 10001,
+    "read_only_rootfs": true,
+    "no_new_privileges": true,
+    "capabilities_dropped": "ALL"
+  },
+  "artifact_integrity": {
+    "sha256": true,
+    "single_byte_corruption_rejection": true,
+    "image_layer_scan": true,
+    "component_spdx_sbom": true,
+    "signature_verification": false
+  },
+  "failure_handling": {
+    "attempt_counter": "inclusive_total_attempts",
+    "technical_retry_classes": ["timeout", "network", "http_429", "http_5xx"],
+    "runtime_fact_actions": ["retry_same_version", "repair_new_version", "escalate", "stop"],
+    "self_repair_max_attempts": 2,
+    "self_repair_scope": "session_and_workflow_lineage",
+    "repair_requires_material_spec_change": true,
+    "repaired_workflow_canary": "required",
+    "evaluator_opinion_channel": "evaluator_to_planning_agent_direct",
+    "monitoring_absent_fallback": "workflow-final-summary.v1"
+  }
+}

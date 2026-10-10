@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:n8n-gateway-capabilities:v1",
+  "title": "N8nGatewayCapabilitiesV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "gateway_id", "api_version", "authentication", "operations"],
+  "properties": {
+    "authentication": {
+      "type": "object",
+      "required": ["scheme", "control_plane"],
+      "properties": {
+        "scheme": {"const": "bearer"},
+        "control_plane": {"const": "required"}
+      },
+      "additionalProperties": false
+    },
+    "schema_version": {"const": "n8n-gateway-capabilities.v1"},
+    "gateway_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "api_version": {"const": "orchestrator-gateway.v1"},
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry_v2",
+        "validate",
+        "create_inactive",
+        "canary",
+        "activate",
+        "automatic_start",
+        "resume",
+        "status",
+        "retire",
+        "live_reference_check",
+        "signed_runtime_event_delivery",
+        "operation_idempotency",
+        "operation_lookup"
+      ],
+      "properties": {
+        "registry_v2": {"$ref": "#/$defs/operation"},
+        "validate": {"$ref": "#/$defs/operation"},
+        "create_inactive": {"$ref": "#/$defs/operation"},
+        "canary": {"$ref": "#/$defs/operation"},
+        "activate": {"$ref": "#/$defs/operation"},
+        "automatic_start": {"$ref": "#/$defs/operation"},
+        "resume": {"$ref": "#/$defs/operation"},
+        "status": {"$ref": "#/$defs/operation"},
+        "retire": {"$ref": "#/$defs/operation"},
+        "live_reference_check": {"$ref": "#/$defs/operation"},
+        "signed_runtime_event_delivery": {"$ref": "#/$defs/operation"},
+        "operation_idempotency": {"$ref": "#/$defs/operation"},
+        "operation_lookup": {"$ref": "#/$defs/operation"}
+      }
+    }
+  },
+  "$defs": {
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "api_version"],
+      "properties": {
+        "available": {"type": "boolean"},
+        "api_version": {"const": "orchestrator-gateway.v1"}
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:reasoner-proposal:v1",
+  "title": "ReasonerProposalV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "correlation_id", "session_id", "plan_version", "workflow_version", "idempotency_key", "proposal_id", "task_groups", "data_bindings", "control_structures", "evaluation_gates"],
+  "properties": {
+    "schema_version": {"const": "reasoner-proposal.v1"},
+    "correlation_id": {"$ref": "#/$defs/id"},
+    "session_id": {"$ref": "#/$defs/id"},
+    "plan_version": {"type": "integer", "minimum": 1},
+    "workflow_version": {"type": "integer", "minimum": 0},
+    "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 256},
+    "proposal_id": {"$ref": "#/$defs/id"},
+    "task_groups": {"type": "array", "maxItems": 256, "items": {"type": "object", "additionalProperties": false, "required": ["group_id", "task_ids", "mode"], "properties": {"group_id": {"$ref": "#/$defs/id"}, "task_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "mode": {"enum": ["sequence", "parallel"]}}}},
+    "data_bindings": {"type": "array", "maxItems": 1024, "items": {"type": "object", "additionalProperties": false, "required": ["source_ref", "target_ref"], "properties": {"source_ref": {"type": "string", "minLength": 1, "maxLength": 256}, "target_ref": {"type": "string", "minLength": 1, "maxLength": 256}}}},
+    "control_structures": {"type": "array", "maxItems": 256, "items": {"type": "object", "additionalProperties": false, "required": ["structure_id", "kind", "task_ids"], "properties": {"structure_id": {"$ref": "#/$defs/id"}, "kind": {"enum": ["decision", "bounded_loop", "wait"]}, "task_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}}},
+    "evaluation_gates": {"type": "array", "maxItems": 256, "items": {"type": "object", "additionalProperties": false, "required": ["gate_id", "after_task_id", "metric"], "properties": {"gate_id": {"$ref": "#/$defs/id"}, "after_task_id": {"$ref": "#/$defs/id"}, "metric": {"$ref": "#/$defs/id"}}}}
+  },
+  "$defs": {"id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}}
+}

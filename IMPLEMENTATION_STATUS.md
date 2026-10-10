@@ -1,24 +1,24 @@
 # Implementation Status
 
-> 由 Codex 在实施过程中持续更新。
-
-| Task | 状态 | Commit/文件 | 测试 | 备注 |
-|---|---|---|---|---|
-| P0-01 工程骨架 | NOT_STARTED | | | |
-| P0-02 数据模型与 migration | NOT_STARTED | | | |
-| P0-03 领域状态机 | NOT_STARTED | | | |
-| P0-04 Agent Preparation/Snapshot | NOT_STARTED | | | |
-| P0-05 Execution IR/Validator | NOT_STARTED | | | |
-| P0-06 n8n Compiler/Adapter | NOT_STARTED | | | |
-| P0-07 S0~S4 Self-Test | NOT_STARTED | | | |
-| P0-08 Execution/Node/Attempt | NOT_STARTED | | | |
-| P0-09 Artifact/MinIO | NOT_STARTED | | | |
-| P0-10 Runtime Event/Reconciliation | NOT_STARTED | | | |
-| P0-11 CMM/Outbox | NOT_STARTED | | | |
-| P0-12 P0 E2E | NOT_STARTED | | | |
-| P1-01 Checkpoint/Fingerprint | NOT_STARTED | | | |
-| P1-02 Evaluation/Reuse | NOT_STARTED | | | |
-| P1-03 Invalidation/Resume Root | NOT_STARTED | | | |
-| P1-04 PATCH Version Lineage | NOT_STARTED | | | |
-| P2-01 Memory Summary | NOT_STARTED | | | |
-| P2-02 Failure-signature Repair | NOT_STARTED | | | |
+| Task | Status | Evidence | Notes |
+|---|---|---|---|
+| P0-01 工程骨架 | COMPLETED / ACCEPTED | `bash scripts/check-p0-01.sh` passed in the bundled Python 3.10 runtime: offline lint, offline type gate, 12 unit/ASGI tests; `orchestrator/backend/{domain,application,ports,adapters,infrastructure}` | Unified Settings, composition-root DI, structured JSON logging, optional OTLP tracer with safe no-op fallback, Prometheus-compatible metrics adapter, request correlation middleware, dependency-aware readiness, lifecycle ownership, and deterministic offline quality gates. Python 3.10 baseline is intentionally retained per project constraint. Ruff/Mypy remain optional accelerators when installed; their absence no longer skips validation. |
+| P0-02 数据模型与 migration | COMPLETED / ACCEPTED | `bash scripts/check-p0-02.sh` passed: P0-01 lint/type gates, 19 unit/ASGI tests (2 expected integration skips in the isolated unit run), followed by 7/7 PostgreSQL tests under Python 3.10; migration CLI `up` and `down` both returned version 1 | PostgreSQL control-plane Domain models, repository Port/Adapter, 12-table transactional migration, checksum verification, generic latest-version rollback, composite FK/unique/CHECK constraints, immutable Snapshot/WorkflowVersion triggers, idempotent Execution/RuntimeEvent/Outbox behavior, and vendored offline driver. Redis remains configuration-only and is not a fact source. |
+| P0-03 领域状态机 | COMPLETED / ACCEPTED | `bash scripts/check-p0-03.sh` passed: lint and 13-file type gate; 26 discovered unit/ASGI tests passed with 3 expected DB skips; P0-02 PostgreSQL 7/7 and P0-03 PostgreSQL/domain 7/7 passed under Python 3.10 | Explicit Workflow/Execution/Node matrices, domain errors, application transition service, structured rejection audit, row locking, atomic state/history writes, database transition guards, terminal-state enforcement, and migration 0002 up/down. |
+| P0-04 Agent Preparation/Snapshot | COMPLETED / ACCEPTED | `bash scripts/check-p0-04.sh` passed under Python 3.10 and PostgreSQL 16: offline lint (104 files), type gate (17 files), 36 full-discovery tests, P0-02 PostgreSQL 7/7, P0-03 7/7, and P0-04 10/10; migration up returned 3 and down returned 3, 2, 1 | Capability resolution, deterministic candidate fallback, lifecycle/health/readiness/reachability/schema/credential gates, immutable SHA-256 Registry Snapshot, Fake Registry/Runtime/Snapshot Adapters, PostgreSQL binding persistence, and P0-03 VALIDATING/SELF_TESTING integration. Real Agent Registry/Runtime/Credential protocols remain documented TBDs. |
+| P0-05 Execution IR/Validator | COMPLETED / ACCEPTED | P0-05专项 12/12；P0-06 完整回归继续覆盖全部 P0-05 测试 | Frozen platform-neutral IR v1 Domain model, canonical SHA-256 hash, Snapshot-backed validation service, deterministic IR-DAG/BIND/SCHEMA/ART/REC/SEC rules, closed external Schema, and P0-04 composition-root integration. P0-06 同步修复了普通 `task-compiler` 标识误命中 `sk-` API Key 扫描的边界问题，真实 Secret 检测保持有效。 |
+| P0-06 n8n Compiler/Adapter | COMPLETED / ACCEPTED | `bash scripts/check-p0-06.sh` passed under Python 3.10 and PostgreSQL 16: offline lint (116 files), type gate (25 files), 57 discovered tests with 2 expected DB skips followed by P0-02 7/7, P0-03 7/7, P0-04 10/10, P0-05 12/12, and P0-06 9/9 | Platform-neutral compiler/engine Ports and frozen DTOs, validated compilation use case, deterministic n8n mapping for invoke/join/end, explicit unsupported-semantics failures, runtime/idempotency/retry/Credential Ref injection, Fake adapters, n8n gateway adapter, and adapter contract tests. No DB change; Ruff/Mypy were unavailable and deterministic offline gates passed. |
+| P0-07 S0~S4 Self-Test | COMPLETED / ACCEPTED | `bash scripts/check-p0-07.sh` passed: offline lint 126 files, offline type gate 32 files, 76 discovered tests (5 expected DB skips followed by dedicated DB suites), P0-02 7/7, P0-03 7/7, P0-04 10/10, P0-05 12/12, P0-06 9/9, P0-07 19/19 on PostgreSQL 16 | Ordered S0-S4 controller, evidence/failure signatures, immutable Snapshot/hash-bound publish gate, PUBLISHED-only formal execute gate, configurable limited repair/retest, child-version semantic repair, Fake probe/repair adapters, transactional repository and release records. Real n8n remains TBD-04; real MinIO and runtime reconciliation remain P0-09/P0-10. |
+| P0-08 Execution/Node/Attempt | COMPLETED / ACCEPTED | `scripts/check-p0-08.sh` and direct regression: unit/API 11/11, PostgreSQL 5/5, full P0-01~P0-08 discovery 92/92 with PostgreSQL; offline lint/type gates passed; PostgreSQL P0-02 7/7, P0-03 7/7, P0-04 10/10, P0-07 19/19, P0-08 5/5 | Formal PUBLISHED-only ExecutionController, stable scoped idempotency, tenant/correlation propagation, engine execute crash-window replay, immutable runtime definitions, Node/Attempt transaction facts, same-Attempt technical retry, explicit business Attempt 2, retry exhaustion, runtime observation/checkpoint seams. Real n8n remains TBD-04; Artifact/MinIO P0-09, Runtime Event reconciliation P0-10, Auth/Tenant protocol TBD-08, retry policy TBD-06. |
+| INT-01A planning-blueprint.v3 Contract / Adapter | COMPLETED / ACCEPTED | Adapter/API/idempotency/PostgreSQL tests；真实 `task-agent-current-execplan.json` 字段形态兼容测试 | `PlanningBlueprintV3Adapter`、内部 `PlanningBlueprintPlan`、DAG/schema/secret/physical-binding/Artifact source 门禁、租户作用域幂等、迁移 0006、PostgreSQL Adapter、v3 API。支持上游 list-shaped outputs/input_bindings/completion criteria；仅支持 WHOLE_ARTIFACT。 |
+| INT-01B Production Composition | COMPLETED / ACCEPTED | production composition 12 tests；完整 PostgreSQL regression 114/114；真实上游形态经合法引用修正后生成 `PUBLISHED` Workflow V1 | 生产组合复用 P0-04～P0-08：Capability Resolution、Snapshot、IR、Validator、n8n Compiler、S0～S4、Publish、Formal Execute；迁移 0007 保存 generation/lineage，首个 execution_id 可回查。真实 n8n 仍为 TBD-04。 |
+| P0-09 Artifact/MinIO | COMPLETED / ACCEPTED | `bash scripts/check-p0-09.sh`: offline lint 163 files/type gate PASS; full discovery 129 PASS; P0-02 7/7, P0-03 7/7, P0-04 10/10, P0-05 12/12, P0-06 9/9, P0-07 19/19, P0-08 16/16, planning-blueprint.v3/INT-01 25/25, P0-09 12/12 against PostgreSQL 16 | ArtifactIdentity/ArtifactRef, ArtifactManager Port, MinIO Adapter and Fake client, isolated tenant/mode namespace, required output/media/schema/hash/size validation, Agent success != Task success, WHOLE_ARTIFACT downstream readiness, stable retry identity, Attempt lineage, tenant-scoped metadata API, migration 0008 up/down. P0-10 Runtime Event/Reconciliation and P1 recovery/intelligence remain excluded. |
+| P0-10 Runtime Event Ingestor + Reconciliation | COMPLETED / ACCEPTED | `bash scripts/check-p0-10.sh` passed: full historical regression 147/147 plus P0-02~P0-09 dedicated suites; P0-10 acceptance 18/18 including PostgreSQL 16 migration up/down, concurrent idempotency and transaction rollback | RuntimeEvent normalization/ingest, event_id idempotency and evaluator-field rejection; Fake n8n/Agent/MinIO facts Ports; deterministic MATCHED/EVENT_MISSING/STALLED/ARTIFACT_MISMATCH/UNCERTAIN reconciliation; raw facts/evidence retention; StateTransitionService compatibility and tenant/correlation scope. P0-09 Artifact Manager remains an existing boundary dependency only; CMM P0-11, real MinIO/n8n TBD-04, Checkpoint Recovery, Evaluation, FIELD_MAPPING and Artifact Intelligence remain excluded. |
+| P0-11 CMM/Outbox | NOT_STARTED | | |
+| P0-12 P0 E2E | NOT_STARTED | | |
+| P1-01 Checkpoint/Fingerprint | NOT_STARTED | | |
+| P1-02 Evaluation/Reuse | NOT_STARTED | | |
+| P1-03 Invalidation/Resume Root | NOT_STARTED | | |
+| P1-04 PATCH Version Lineage | NOT_STARTED | | |
+| P2-01 Memory Summary | NOT_STARTED | | |
+| P2-02 Failure-signature Repair | NOT_STARTED | | |

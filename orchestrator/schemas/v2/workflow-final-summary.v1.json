@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:workflow-final-summary:v1",
+  "title": "WorkflowFinalSummaryV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_version", "caller_identity", "correlation_id", "session_id", "plan_version", "workflow_version", "execution_id", "terminal_status", "monitoring_mode", "node_execution_states", "output_refs", "artifact_refs", "log_refs", "checkpoint_refs", "input_summary", "retry_repair_history", "operation_key"],
+  "properties": {
+    "schema_version": {"const": "workflow-final-summary.v1"},
+    "contract_version": {"const": "workflow-final-summary.v1"},
+    "caller_identity": {"const": "orchestrator-final-summary"},
+    "correlation_id": {"$ref": "#/$defs/id"},
+    "session_id": {"$ref": "#/$defs/id"},
+    "plan_version": {"type": "integer", "minimum": 1},
+    "workflow_version": {"type": "integer", "minimum": 1},
+    "execution_id": {"$ref": "#/$defs/id"},
+    "terminal_status": {"enum": ["completed", "failed", "cancelled"]},
+    "monitoring_mode": {"const": "planner_final_summary_fallback"},
+    "node_execution_states": {
+      "type": "array", "maxItems": 1024,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["node_id", "status"],
+        "properties": {
+          "node_id": {"$ref": "#/$defs/id"},
+          "status": {"enum": ["pending", "running", "completed", "failed", "skipped", "cancelled"]},
+          "attempt": {"type": "integer", "minimum": 0, "maximum": 100}
+        }
+      }
+    },
+    "output_refs": {"$ref": "#/$defs/refs"},
+    "artifact_refs": {"$ref": "#/$defs/refs"},
+    "log_refs": {"$ref": "#/$defs/refs"},
+    "checkpoint_refs": {"$ref": "#/$defs/refs"},
+    "input_summary": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"input_ref": {"type": "string", "maxLength": 2048}, "description": {"type": "string", "maxLength": 2048}}
+    },
+    "retry_repair_history": {
+      "type": "array", "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["action", "attempt"],
+        "properties": {
+          "action": {"enum": ["retry", "repair", "escalate", "stop"]},
+          "attempt": {"type": "integer", "minimum": 0, "maximum": 100},
+          "reason_code": {"type": "string", "maxLength": 128},
+          "workflow_version": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "operation_key": {"type": "string", "minLength": 1, "maxLength": 256}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "refs": {"type": "array", "maxItems": 256, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 2048}}
+  }
+}

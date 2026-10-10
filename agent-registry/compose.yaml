@@ -1,0 +1,185 @@
+services:
+  postgres:
+    image: agent-registry/postgres:20260819
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agent_registry_dev_postgres}
+      N8N_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agent_registry_dev_postgres}
+      REGISTRY_POSTGRES_PASSWORD: ${REGISTRY_POSTGRES_PASSWORD:-agent_registry_dev_registry}
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:${POSTGRES_PORT:-25432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [registry_internal]
+
+  n8n:
+    image: agent-registry/n8n:20260819
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      GENERIC_TIMEZONE: ${TZ:-Asia/Shanghai}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-agent_registry_dev_postgres}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-agent_registry_development_encryption_key_20260819}
+      N8N_HOST: n8n
+      N8N_LISTEN_ADDRESS: 0.0.0.0
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://n8n:5678/
+      N8N_EDITOR_BASE_URL: http://n8n:5678/
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_TEMPLATES_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      # The Orchestrator gateway uses the local n8n REST API to create and
+      # start generated workflows.  Keep it enabled on this isolated dev
+      # network; the host port remains bound to loopback.
+      N8N_PUBLIC_API_DISABLED: "false"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "24"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:${N8N_PORT:-25678}:5678"
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+      - ./workflows:/bootstrap/workflows:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5678/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [registry_internal]
+
+  wordagent:
+    image: agent-registry/wordagent:20260819
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:${WORDAGENT_PORT:-24324}:4324"
+    volumes:
+      - ./data/wordagent:/app/wordagent/data
+      - ./logs/wordagent:/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4324/health', timeout=2)"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    networks: [registry_internal]
+
+  pytestproject:
+    image: agent-registry/pytestproject:20260819
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      PYTESTPROJECT_PROJECT_DIR: /app/pytestproject
+      # Use the offline shared310 interpreter baked into the image; the
+      # system interpreter intentionally has no pytest installation.
+      PYTESTPROJECT_PYTHON: /opt/host-agent-envs/shared310/bin/python
+      PYTESTPROJECT_WORD_OUTPUT_DIR: /app/word-output
+      PYTESTPROJECT_GENERATED_CASES_DIR: /app/pytestproject/inputs
+      WEB_APP_URL: http://reportagent:6000
+      DISPLAY: :99
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:${PYTESTPROJECT_PORT:-25000}:5000"
+    volumes:
+      - ./data/pytestproject:/app/pytestproject/runtime
+      - ./data/wordagent:/app/word-output:ro
+      - ./logs/pytestproject:/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [registry_internal]
+
+  reportagent:
+    image: agent-registry/reportagent:20260819
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      pytestproject:
+        condition: service_healthy
+    environment:
+      PYTEST_WORKER_URL: http://pytestproject:5000
+      PROJECT_DIR: /app/reportagent
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:${REPORTAGENT_PORT:-26000}:6000"
+    volumes:
+      - ./data/reportagent:/app/reportagent/test_results
+      - ./logs/reportagent:/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6000/api/health', timeout=2)"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    networks: [registry_internal]
+
+  filter-library-api:
+    image: agent-registry/filter-library-api:20260819
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      TEST_CASE_AGENT_UI_BASE_URL: http://filter-library-ui:3000
+      TEST_CASE_AGENT_ALLOWED_ORIGINS: http://${HOST_BIND:-127.0.0.1}:${FILTER_LIBRARY_UI_PORT:-28483}
+      TEST_CASE_AGENT_DISABLE_LLM_RERANK: "true"
+      TEST_CASE_AGENT_LOG_DIR: /app/data/logs
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:${FILTER_LIBRARY_API_PORT:-28482}:8000"
+    volumes:
+      - ./data/filter-library:/app/data
+      - ./logs/filter-library:/logs
+    healthcheck:
+      test: ["CMD", "python", "-S", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    networks: [registry_internal]
+
+  filter-library-ui:
+    image: agent-registry/filter-library-ui:20260819
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      filter-library-api:
+        condition: service_healthy
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:${FILTER_LIBRARY_UI_PORT:-28483}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    networks: [registry_internal]
+
+networks:
+  registry_internal:
+    external: true
+    name: ${REGISTRY_NETWORK_NAME:-orchestrator_shared}
+
+volumes:
+  postgres_data:

@@ -1,0 +1,78 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:orchestrator:planning-blueprint:v3
+title: PlanningBlueprintV3
+type: object
+additionalProperties: false
+required: [schema_version, session_id, plan_id, plan_version, workflow_version, idempotency_key, tasks]
+properties:
+  schema_version: {const: planning-blueprint.v3}
+  correlation_id: {type: string, minLength: 1}
+  session_id: {type: string, minLength: 1}
+  plan_id: {type: string, minLength: 1}
+  plan_version: {type: integer, minimum: 0}
+  workflow_version: {type: integer, minimum: 0}
+  idempotency_key: {type: string, minLength: 1}
+  inputs: {type: object}
+  outputs: {type: object}
+  completion_criteria: {type: object}
+  retry_policy: {type: object}
+  execution_policy: {type: object}
+  constraints: {type: object}
+  contract_version: {type: string}
+  created_reason: {type: string}
+  intent_id: {type: string}
+  intent_revision: {type: integer, minimum: 0}
+  goal: {type: object}
+  timeout_policy: {type: object}
+  tasks:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      additionalProperties: false
+      required: [task_id, objective, capabilities]
+      properties:
+        task_id: {type: string, minLength: 1}
+        objective: {type: string, minLength: 1}
+        capabilities: {type: array, minItems: 1, uniqueItems: true, items: {type: string, minLength: 1}}
+        depends_on: {type: array, uniqueItems: true, items: {type: string, minLength: 1}}
+        inputs: {type: object}
+        input_bindings:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [binding_mode, source]
+            properties:
+              binding_mode: {const: WHOLE_ARTIFACT}
+              source:
+                type: object
+                additionalProperties: false
+                required: [source_type, source_task_id, output_id]
+                properties:
+                  source_type: {const: TASK_OUTPUT}
+                  source_task_id: {type: string, minLength: 1}
+                  output_id: {type: string, minLength: 1}
+        outputs:
+          oneOf:
+            - {type: object}
+            - type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [output_id]
+                properties:
+                  output_id: {type: string, minLength: 1}
+                  artifact_type: {type: string, minLength: 1}
+                  media_type: {type: string, minLength: 1}
+                  schema_ref: {type: string, minLength: 1}
+                  schema: {type: object}
+                  required: {type: boolean}
+                  min_size_bytes: {type: integer, minimum: 0}
+                  max_size_bytes: {type: integer, minimum: 0}
+        completion_criteria:
+          oneOf: [{type: object}, {type: array}]
+        retry_policy: {type: object}
+        execution_policy: {type: object}
+        iteration: {type: object}
+        side_effect: {type: string}

@@ -1,0 +1,82 @@
+services:
+  planning-agent:
+    image: portable/planning-agent-stub:1.0.0
+    restart: unless-stopped
+    environment:
+      PLANNING_AGENT_STATE_FILE: /state/planning-agent-last.json
+      PLANNING_AGENT_MAX_REQUEST_BYTES: ${PLANNING_AGENT_MAX_REQUEST_BYTES:-1048576}
+      PLANNING_AGENT_HMAC_REQUIRED: ${PLANNING_AGENT_HMAC_REQUIRED:-false}
+      PLANNING_AGENT_DEV_HMAC_BYPASS: ${PLANNING_AGENT_DEV_HMAC_BYPASS:-true}
+    volumes: [planning-agent-state:/state]
+    ports:
+      - "${PLANNING_AGENT_BIND:-127.0.0.1}:${PLANNING_AGENT_PORT:-18000}:18000"
+    networks: [migration]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/python3.10", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  orchestrator-gateway:
+    image: portable/orchestrator-gateway:1.0.0
+    restart: unless-stopped
+    environment:
+      GATEWAY_PORT: "8080"
+      GATEWAY_API_KEY_FILE: /run/secrets/gateway_api_key
+      REGISTRY_FILE: /bundle/agent-registry/registration/agents.json
+      N8N_INTERNAL_URL: ${N8N_INTERNAL_URL:-http://n8n:5678}
+      N8N_CONTAINER: n8n
+      N8N_POSTGRES_CONTAINER: postgres
+      ORCHESTRATOR_BASE_URL: http://orchestrator-agent:8020
+    secrets: [gateway_api_key]
+    volumes:
+      - ./agent-registry/registration:/bundle/agent-registry/registration:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-27880}:8080"
+    networks: [migration]
+    depends_on:
+      planning-agent: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/python3.10", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  orchestrator-agent:
+    image: orchestrator-agent-standalone:1.1.0
+    restart: unless-stopped
+    environment:
+      N8N_BASE_URL: ${N8N_BASE_URL:-http://n8n:5678}
+      ORCHESTRATOR_PLANNING_AGENT_BASE_URL: http://planning-agent:18000
+      N8N_GATEWAY_BASE_URL: http://orchestrator-gateway:8080
+      ORCHESTRATOR_DATABASE_PATH: /var/lib/orchestrator/orchestrator.sqlite3
+      ORCHESTRATOR_POSTGRES_DSN: ${ORCHESTRATOR_POSTGRES_DSN:-}
+      ORCHESTRATOR_POSTGRES_SCHEMA: ${ORCHESTRATOR_POSTGRES_SCHEMA:-orchestrator}
+      ORCHESTRATOR_REDIS_URL: ${ORCHESTRATOR_REDIS_URL:-}
+      ORCHESTRATOR_REDIS_REQUIRED: ${ORCHESTRATOR_REDIS_REQUIRED:-false}
+    volumes: [orchestrator-data:/var/lib/orchestrator]
+    ports:
+      - "${ORCHESTRATOR_BIND:-127.0.0.1}:${ORCHESTRATOR_PORT:-28020}:8020"
+    networks: [migration]
+    depends_on:
+      planning-agent: {condition: service_healthy}
+      orchestrator-gateway: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/python3.10", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  planning-agent-state:
+  orchestrator-data:
+
+networks:
+  migration:
+    external: true
+    name: ${REGISTRY_NETWORK_NAME:-orchestrator_shared}
+
+secrets:
+  gateway_api_key:
+    file: "${GATEWAY_API_KEY_FILE:?GATEWAY_API_KEY_FILE is required}"

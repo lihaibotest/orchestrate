@@ -1,0 +1,157 @@
+{
+  "name": "agent-health-monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "agent-health-schedule",
+      "name": "Agent Health Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT agent_id, health_url\nFROM public.registered_agents\nWHERE status IN ('active','stale')\n  AND health_url IN (\n    'http://filter-library-api:8000/health',\n    'http://wordagent:4324/health',\n    'http://pytestproject:5000/api/health',\n    'http://reportagent:6000/api/health'\n  )\nORDER BY priority ASC, agent_id ASC;",
+        "options": {}
+      },
+      "id": "select-healthcheck-agents",
+      "name": "Select Healthcheck Agents",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "agentRegistryPostgres20260819",
+          "name": "Agent Registry PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.health_url }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "probe-agent-health",
+      "name": "Probe Agent Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const sources=$('Select Healthcheck Agents').all(); return $input.all().map((item,index)=>{ const paired=Array.isArray(item.pairedItem)?item.pairedItem[0]?.item:item.pairedItem?.item; const sourceIndex=Number.isInteger(paired)?paired:index; const source=sources[sourceIndex]?.json ?? {}; const result=item.json ?? {}; const failed=Boolean(result.error || (result.statusCode && Number(result.statusCode)>=400)); return {json:{agent_id:source.agent_id,status:failed?'stale':'active',last_error:failed?String(result.error?.message ?? `health probe failed: ${result.statusCode ?? 'unknown'}`):null,now:new Date().toISOString()},pairedItem:{item:sourceIndex}}; });"
+      },
+      "id": "normalize-health-result",
+      "name": "Normalize Health Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.registered_agents SET status=$2, last_heartbeat=CASE WHEN $2='active' THEN $3::timestamptz ELSE last_heartbeat END, expires_at=CASE WHEN $2='active' THEN GREATEST(expires_at,$3::timestamptz + INTERVAL '30 days') ELSE expires_at END, updated_at=$3::timestamptz, failure_count=CASE WHEN $2='active' THEN 0 ELSE failure_count+1 END, last_error=$4 WHERE agent_id=$1 RETURNING agent_id, status, last_heartbeat, expires_at, failure_count, last_error;",
+        "options": {
+          "queryReplacement": "={{ [$json.agent_id,$json.status,$json.now,$json.last_error] }}"
+        }
+      },
+      "id": "persist-health-result",
+      "name": "Persist Health Result",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1220,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "agentRegistryPostgres20260819",
+          "name": "Agent Registry PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Agent Health Schedule": {
+      "main": [
+        [
+          {
+            "node": "Select Healthcheck Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Healthcheck Agents": {
+      "main": [
+        [
+          {
+            "node": "Probe Agent Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Probe Agent Health": {
+      "main": [
+        [
+          {
+            "node": "Normalize Health Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Health Result": {
+      "main": [
+        [
+          {
+            "node": "Persist Health Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "agentRegistryHealth20260819"
+}

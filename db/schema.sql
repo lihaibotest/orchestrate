@@ -77,11 +77,23 @@ create table node_attempt (
 
 create table artifact_ref (
   artifact_id text primary key,
+  tenant_id text not null,
+  workflow_family_id text not null,
+  workflow_version integer not null,
   execution_id text not null references execution(execution_id),
+  execution_mode text not null check (execution_mode in ('PRODUCTION', 'SELF_TEST')),
   node_id text not null,
   attempt_no integer not null,
+  output_name text not null,
+  artifact_type text not null,
+  media_type text not null,
+  schema_ref text,
   uri text not null,
+  storage_ref text not null,
   content_hash text not null,
+  size_bytes bigint not null check (size_bytes >= 0),
+  status text not null check (status in ('CREATED', 'VALIDATING', 'VALIDATED', 'CONSUMED', 'INVALID', 'DELETED')),
+  validation_status text not null check (validation_status in ('PENDING', 'PASS', 'FAIL')),
   schema_id text,
   schema_version text,
   quality_status text,
@@ -90,7 +102,21 @@ create table artifact_ref (
   permission_scope jsonb,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  unique(execution_id, node_id, attempt_no, content_hash)
+  unique(tenant_id, artifact_id),
+  unique(execution_id, node_id, attempt_no, output_name),
+  foreign key(execution_id, node_id, attempt_no) references node_attempt(execution_id, node_id, attempt_no)
+);
+
+create table artifact_validation (
+  validation_id bigserial primary key,
+  tenant_id text not null,
+  artifact_id text not null,
+  validation_type text not null,
+  result text not null check (result in ('PASS', 'FAIL')),
+  error_code text,
+  failure_reason text,
+  created_at timestamptz not null default now(),
+  foreign key(tenant_id, artifact_id) references artifact_ref(tenant_id, artifact_id)
 );
 
 create table checkpoint (
@@ -133,6 +159,39 @@ create table runtime_event (
   occurred_at timestamptz not null
 );
 create index idx_runtime_event_execution_time on runtime_event(execution_id, occurred_at);
+
+-- P0-10 Runtime Event / Reconciliation projection. Migration 0009 is authoritative.
+alter table runtime_event add column if not exists tenant_id text;
+alter table runtime_event add column if not exists source text not null default 'LEGACY';
+alter table runtime_event add column if not exists correlation_id text;
+alter table runtime_event add column if not exists external_reference text;
+alter table runtime_event add column if not exists received_at timestamptz not null default now();
+alter table runtime_event add column if not exists payload_hash text;
+alter table runtime_event add column if not exists event_version integer not null default 1;
+alter table runtime_event add column if not exists processing_status text not null default 'RECEIVED';
+alter table runtime_event add column if not exists processing_retry_count integer not null default 0;
+alter table runtime_event add column if not exists processing_error_code text;
+alter table runtime_event add column if not exists processing_error_message text;
+
+create table if not exists runtime_observation (
+  observation_id text primary key,
+  event_id text not null references runtime_event(event_id) on delete cascade,
+  tenant_id text not null,
+  correlation_id text not null,
+  execution_id text not null references execution(execution_id),
+  node_id text,
+  attempt_no integer,
+  observed_state text not null,
+  source text not null,
+  confidence text not null default 'AUTHORITATIVE_SOURCE',
+  external_reference text,
+  occurred_at timestamptz not null,
+  evidence jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique(event_id, observed_state)
+);
+create index if not exists idx_runtime_observation_execution_time
+  on runtime_observation(tenant_id, execution_id, occurred_at, created_at);
 
 create table context_outbox (
   event_id text primary key,

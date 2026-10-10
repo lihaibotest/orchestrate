@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:evaluation-result:v2",
+  "title": "EvaluationResultV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "correlation_id", "session_id", "plan_version", "workflow_version", "idempotency_key", "evaluation_id", "execution_id", "node_id", "outcome", "metrics", "failure"],
+  "properties": {
+    "schema_version": {"const": "evaluation-result.v2"},
+    "correlation_id": {"$ref": "#/$defs/id"}, "session_id": {"$ref": "#/$defs/id"}, "plan_version": {"type": "integer", "minimum": 1}, "workflow_version": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 256},
+    "evaluation_id": {"$ref": "#/$defs/id"}, "execution_id": {"$ref": "#/$defs/id"}, "node_id": {"$ref": "#/$defs/id"},
+    "outcome": {"enum": ["passed", "failed", "inconclusive"]},
+    "metrics": {"type": "object", "additionalProperties": {"oneOf": [{"type": "integer"}, {"type": "number"}, {"type": "boolean"}, {"type": "string", "maxLength": 1024}]}},
+    "failure": {"oneOf": [{"type": "object", "additionalProperties": false, "required": ["error_class", "error_code", "diagnostic"], "properties": {"error_class": {"enum": ["technical", "business", "quality", "validation", "unknown"]}, "error_code": {"type": "string", "minLength": 1, "maxLength": 128}, "diagnostic": {"type": "string", "maxLength": 8192}}}, {"type": "null"}]}
+  },
+  "$defs": {"id": {"type": "string", "minLength": 1, "maxLength": 256}}
+}

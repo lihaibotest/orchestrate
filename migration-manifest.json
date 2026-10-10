@@ -1,0 +1,72 @@
+{
+  "architectures": [
+    "amd64"
+  ],
+  "artifact_signing": false,
+  "bundle_layout": {
+    "agent_registry": "agent-registry",
+    "images": "images",
+    "migration_compose": "docker-compose.migration.yml",
+    "orchestrator": "orchestrator",
+    "root": "portable-migration",
+    "runtime_data": "data"
+  },
+  "components": {
+    "agent_registry": "agent-registry",
+    "gateway": "services/orchestrator-gateway",
+    "orchestrator": "orchestrator",
+    "planning_agent": "services/planning-agent"
+  },
+  "compose_files": [
+    "agent-registry/compose.yaml",
+    "docker-compose.migration.yml"
+  ],
+  "image_checksum_manifest": "images/SHA256SUMS",
+  "image_manifest": "images/manifest.json",
+  "runtime_secret_names": [
+    "gateway-api-key",
+    "n8n-api-key",
+    "planning-hmac",
+    "n8n-hmac",
+    "deepseek-api-key"
+  ],
+  "schema_version": "portable-migration.v1",
+  "services": [
+    "postgres",
+    "n8n",
+    "planning-agent",
+    "orchestrator-gateway",
+    "orchestrator-agent",
+    "wordagent",
+    "pytestproject",
+    "reportagent",
+    "filter-library-api",
+    "filter-library-ui"
+  ],
+  "shared_network": "${REGISTRY_NETWORK_NAME}",
+  "source_policy": {
+    "excluded_patterns": [
+      "source-before.json",
+      "source-allowlists.json",
+      "selected-source-manifest.json",
+      ".env",
+      ".runtime-secrets",
+      "*.sqlite3",
+      "*.pyc",
+      "*.log"
+    ],
+    "protected_source_included": false,
+    "runtime_allowlist": true
+  },
+  "startup_order": [
+    "postgres",
+    "n8n",
+    "planning-agent",
+    "orchestrator-gateway",
+    "orchestrator-agent"
+  ],
+  "verification": [
+    "sha256sum -c artifacts/SHA256SUMS",
+    "scripts/verify-package.sh"
+  ]
+}

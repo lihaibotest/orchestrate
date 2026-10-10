@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:runtime-terminal-event:v2",
+  "title": "RuntimeTerminalEventV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "correlation_id", "session_id", "plan_version", "workflow_version", "idempotency_key", "event_id", "execution_id", "terminal_status", "node_execution_states", "output_refs", "artifact_refs", "log_refs", "checkpoint_refs", "input_summary", "retry_repair_history"],
+  "properties": {
+    "schema_version": {"const": "runtime-terminal-event.v2"},
+    "correlation_id": {"$ref": "#/$defs/id"},
+    "session_id": {"$ref": "#/$defs/id"},
+    "plan_version": {"type": "integer", "minimum": 1},
+    "workflow_version": {"type": "integer", "minimum": 1},
+    "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 256},
+    "event_id": {"$ref": "#/$defs/id"},
+    "execution_id": {"$ref": "#/$defs/id"},
+    "terminal_status": {"enum": ["completed", "failed", "cancelled"]},
+    "node_execution_states": {"type": "array", "maxItems": 1024, "items": {"type": "object"}},
+    "output_refs": {"$ref": "#/$defs/refs"},
+    "artifact_refs": {"$ref": "#/$defs/refs"},
+    "log_refs": {"$ref": "#/$defs/refs"},
+    "checkpoint_refs": {"$ref": "#/$defs/refs"},
+    "input_summary": {"type": "object"},
+    "retry_repair_history": {"type": "array", "maxItems": 256, "items": {"type": "object"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "refs": {"type": "array", "maxItems": 256, "items": {"type": "string", "minLength": 1, "maxLength": 2048}}
+  }
+}

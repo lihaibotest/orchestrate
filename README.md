@@ -2,6 +2,20 @@
 
 本目录用于直接交给 Codex/编码智能体实施工程。它不是源设计的替代品，而是把 V3.2 总体设计与 V1.0 详细设计转成更适合逐项编码和验收的规格。
 
+## 当前实施状态
+
+本目录现已同时作为规格与实现仓库。P0-01 至 P0-04 的已验收实现已从
+`portable-migration` 合并至此，P0-05 Execution IR/Validator 与 P0-06
+Compiler/n8n Adapter、P0-07 S0~S4 Self-Test 与发布/执行门禁也在此实现；
+P0-08 已补齐正式 Execution、NodeExecution、Business Attempt、同 Attempt
+技术重试、稳定幂等身份与 PostgreSQL 事务控制；P0-09 已实现 Artifact/MinIO
+Manager、输出验证、ArtifactRef 与 WHOLE_ARTIFACT 下游交接；
+后续开发以本目录为唯一工程根目录，不再向旧目录生成新功能。
+
+为避免把发布制品混入源码仓库，合并范围包含源码、配置模板、migration、
+测试、脚本和 vendored Python 数据库驱动，不包含离线容器镜像、运行数据、
+日志、状态目录或真实 Secret。
+
 ## 建议技术基线
 源详细设计推荐：Python 3.11+ / FastAPI、PostgreSQL、Redis、n8n、MinIO、CMM、Agent Registry/Runtime、Kubernetes、OpenTelemetry + Prometheus + Grafana。除既有平台组件外，其余属于推荐实现，可按现网技术栈等价替换，但不得破坏 Execution IR 与 Adapter 边界。
 

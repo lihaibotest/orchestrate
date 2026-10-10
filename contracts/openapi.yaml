@@ -4,6 +4,23 @@ info:
   version: 0.1.0
   description: Initial coding contract. Endpoint field details remain subject to TBD-01/TBD-08 and source design review.
 paths:
+  /api/v1/planning-blueprints:
+    post:
+      operationId: ingestPlanningBlueprintV3
+      parameters:
+        - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
+        - {in: header, name: X-Correlation-Id, schema: {type: string}}
+        - {in: header, name: Idempotency-Key, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './planning-blueprint.v3.schema.yaml'
+      responses:
+        '202': {description: Blueprint accepted by the inbound adapter}
+        '409': {description: Idempotency or version conflict}
+        '422': {description: Structured schema, DAG, capability, or secret error}
   /v1/workflow-families:
     post:
       operationId: createWorkflowFamily
@@ -56,35 +73,126 @@ paths:
       responses:
         '200': {description: Published}
         '409': {description: Release gate not satisfied}
-  /v1/executions:
+  /api/v1/executions:
     post:
       operationId: createExecution
       parameters:
         - {in: header, name: Idempotency-Key, required: true, schema: {type: string}}
+        - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
+        - {in: header, name: X-Correlation-Id, schema: {type: string}}
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [tenant_id, workflow_family_id, workflow_version]
+              additionalProperties: false
+              required: [workflow_family_id, workflow_version]
               properties:
-                tenant_id: {type: string}
                 workflow_family_id: {type: string}
-                workflow_version: {type: integer}
+                workflow_version: {type: integer, minimum: 1}
                 client_request_id: {type: string}
+                inputs: {type: object, additionalProperties: true}
       responses:
-        '201': {description: Execution created}
-        '409': {description: Workflow not publishable/published}
-  /v1/executions/{execution_id}:
+        '200': {description: Idempotent replay of the authoritative Execution}
+        '201': {description: Production Execution created and submitted to the published engine workflow}
+        '409': {description: Publish gate, release identity, or idempotency conflict}
+        '422': {description: Invalid input or forbidden credential material}
+  /api/v1/executions/{execution_id}:
     get:
       operationId: getExecution
       parameters:
         - {in: path, name: execution_id, required: true, schema: {type: string}}
+        - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
       responses:
-        '200': {description: Execution status}
-  /v1/runtime-events:
+        '200': {description: Execution with Node and Attempt summaries}
+        '404': {description: Execution not found in the tenant scope}
+  /api/v1/artifacts/{artifact_id}:
+    get:
+      operationId: getArtifactMetadata
+      description: Returns tenant-scoped metadata and never returns object content.
+      parameters:
+        - {in: path, name: artifact_id, required: true, schema: {type: string}}
+        - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Artifact identity, validation, storage reference, and producer metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [artifact_id, storage_ref, content_hash, producer, validation_status]
+                properties:
+                  artifact_id: {type: string}
+                  artifact_type: {type: string}
+                  media_type: {type: string}
+                  schema_ref: {type: [string, 'null']}
+                  content_hash: {type: string}
+                  size_bytes: {type: integer, minimum: 0}
+                  storage_ref: {type: string}
+                  producer: {type: object}
+                  status: {type: string}
+                  validation_status: {type: string, enum: [PENDING, PASS, FAIL]}
+        '404': {description: Artifact not found in the tenant scope}
+  /api/v1/runtime-events:
     post:
       operationId: ingestRuntimeEvent
+      description: Receive an external runtime fact. This endpoint never writes Execution state directly.
+      parameters:
+        - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
+        - {in: header, name: X-Correlation-Id, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, event_type, execution_id, workflow_version, occurred_at]
+              properties:
+                event_id: {type: string}
+                source: {type: string, enum: [WORKFLOW_ENGINE, AGENT_RUNTIME, ARTIFACT_STORE]}
+                event_type: {type: string}
+                execution_id: {type: string}
+                workflow_version: {type: integer, minimum: 1}
+                node_id: {type: [string, 'null']}
+                attempt_no: {type: [integer, 'null'], minimum: 1}
+                external_reference: {type: [string, 'null']}
+                occurred_at: {type: string, format: date-time}
+                payload: {type: object}
+              additionalProperties: false
       responses:
-        '202': {description: Accepted idempotently}
+        '202': {description: Accepted and persisted as RECEIVED}
+        '200': {description: Duplicate event replay}
+        '409': {description: Event identity or correlation conflict}
+        '422': {description: Evaluator fields or invalid event shape rejected}
+  /api/v1/executions/{execution_id}/runtime-events:
+    get:
+      operationId: listRuntimeEvents
+      description: Return tenant-scoped Runtime Events and normalized Observations.
+      parameters:
+        - {in: path, name: execution_id, required: true, schema: {type: string}}
+        - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Runtime event processing facts and observations}
+        '404': {description: Execution not found in the tenant scope}
+  /api/v1/executions/{execution_id}/reconcile:
+    post:
+      operationId: reconcileExecutionRuntimeFacts
+      description: Reconcile retained n8n, Agent Runtime and MinIO facts without accepting any source status as internal truth.
+      parameters:
+        - {in: path, name: execution_id, required: true, schema: {type: string}}
+        - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Deterministic reconciliation result and retained evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [execution_id, status, evidence, raw_facts]
+                properties:
+                  execution_id: {type: string}
+                  status: {type: string, enum: [MATCHED, EVENT_MISSING, STALLED, ARTIFACT_MISMATCH, UNCERTAIN]}
+                  evidence: {type: array, items: {type: object}}
+                  raw_facts: {type: array, items: {type: object}}
+        '404': {description: Execution not found in the tenant scope}

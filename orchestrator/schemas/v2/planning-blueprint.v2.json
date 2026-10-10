@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:planning-blueprint:v2",
+  "title": "PlanningBlueprintV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_version", "correlation_id", "session_id", "plan_version", "workflow_version", "idempotency_key", "timeout_policy", "retry_policy", "goal", "tasks", "constraints", "execution_policy"],
+  "properties": {
+    "schema_version": {"const": "planning-blueprint.v2"},
+    "contract_version": {"const": "orchestration.v1"},
+    "correlation_id": {"$ref": "#/$defs/id"},
+    "session_id": {"$ref": "#/$defs/id"},
+    "plan_version": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+    "workflow_version": {"const": 0},
+    "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 256},
+    "timeout_policy": {"$ref": "#/$defs/timeout_policy"},
+    "retry_policy": {"$ref": "#/$defs/retry_policy"},
+    "goal": {"$ref": "#/$defs/goal"},
+    "tasks": {"type": "array", "minItems": 1, "maxItems": 256, "items": {"$ref": "#/$defs/task"}},
+    "constraints": {"$ref": "#/$defs/constraints"},
+    "execution_policy": {"$ref": "#/$defs/execution_policy"}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "timeout_policy": {"type": "object", "additionalProperties": false, "required": ["seconds"], "properties": {"seconds": {"type": "integer", "minimum": 1, "maximum": 86400}}},
+    "retry_policy": {"type": "object", "additionalProperties": false, "required": ["max_attempts", "backoff_seconds", "max_backoff_seconds", "timeout_seconds", "retry_on"], "properties": {"max_attempts": {"type": "integer", "minimum": 1, "maximum": 10}, "backoff_seconds": {"type": "integer", "minimum": 0, "maximum": 300}, "max_backoff_seconds": {"type": "integer", "minimum": 0, "maximum": 3600}, "timeout_seconds": {"type": "integer", "minimum": 1}, "retry_on": {"type": "array", "uniqueItems": true, "items": {"enum": ["timeout", "network", "http_429", "http_5xx"]}}}},
+    "criterion": {"type": "object", "additionalProperties": false, "required": ["criterion_id", "metric", "operator", "target"], "properties": {"criterion_id": {"$ref": "#/$defs/id"}, "metric": {"$ref": "#/$defs/id"}, "operator": {"enum": ["eq", "ne", "gt", "gte", "lt", "lte"]}, "target": {"oneOf": [{"type": "integer"}, {"type": "number"}, {"type": "string", "maxLength": 1024}, {"type": "boolean"}]}}},
+    "goal": {"type": "object", "additionalProperties": false, "required": ["goal_id", "objective", "criteria"], "properties": {"goal_id": {"$ref": "#/$defs/id"}, "objective": {"type": "string", "minLength": 1, "maxLength": 4096}, "criteria": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/criterion"}}}},
+    "iteration": {"type": "object", "additionalProperties": false, "required": ["enabled", "max_iterations"], "properties": {"enabled": {"type": "boolean"}, "max_iterations": {"type": "integer", "minimum": 0, "maximum": 100}}},
+    "task": {"type": "object", "additionalProperties": false, "required": ["task_id", "objective", "capabilities", "depends_on", "completion_criteria", "iteration", "side_effect"], "properties": {"task_id": {"$ref": "#/$defs/id"}, "objective": {"type": "string", "minLength": 1, "maxLength": 4096}, "capabilities": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "depends_on": {"type": "array", "maxItems": 256, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "completion_criteria": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/criterion"}}, "iteration": {"$ref": "#/$defs/iteration"}, "side_effect": {"enum": ["read_only", "idempotent_write", "non_idempotent_write", "external_transaction"]}}},
+    "constraints": {"type": "object", "additionalProperties": false, "required": ["max_duration_seconds", "max_cost_microusd", "max_agent_calls", "max_parallelism"], "properties": {"max_duration_seconds": {"type": "integer", "minimum": 1, "maximum": 604800}, "max_cost_microusd": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807}, "max_agent_calls": {"type": "integer", "minimum": 1, "maximum": 100000}, "max_parallelism": {"type": "integer", "minimum": 1, "maximum": 256}}},
+    "execution_policy": {"type": "object", "additionalProperties": false, "required": ["allow_replan", "allow_rebinding", "side_effect_approval"], "properties": {"allow_replan": {"type": "boolean"}, "allow_rebinding": {"type": "boolean"}, "side_effect_approval": {"enum": ["reject_unsafe"]}}}
+  }
+}

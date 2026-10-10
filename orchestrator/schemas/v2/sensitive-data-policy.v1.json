@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:sensitive-data-policy:v1",
+  "title": "SensitiveDataPolicyV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "allowed_fields", "redacted_key_patterns", "max_string_length", "store_payload_hash", "raw_payload_retention"],
+  "properties": {
+    "schema_version": {"const": "sensitive-data-policy.v1"},
+    "allowed_fields": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "redacted_key_patterns": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+    "max_string_length": {"type": "integer", "minimum": 1, "maximum": 65536},
+    "store_payload_hash": {"const": true},
+    "raw_payload_retention": {"const": "never"}
+  }
+}

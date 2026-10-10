@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orchestrator:workflow-escalation:v1",
+  "title": "WorkflowEscalationV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_version", "caller_identity", "correlation_id", "session_id", "plan_version", "workflow_version", "reason_code", "required_decision", "missing_capabilities", "external_dependency", "repair_attempts", "evidence", "operation_key"],
+  "properties": {
+    "schema_version": {"const": "workflow-escalation.v1"},
+    "contract_version": {"const": "workflow-escalation.v1"},
+    "caller_identity": {"const": "orchestrator-escalation"},
+    "correlation_id": {"$ref": "#/$defs/id"},
+    "session_id": {"$ref": "#/$defs/id"},
+    "plan_version": {"type": "integer", "minimum": 1},
+    "workflow_version": {"type": "integer", "minimum": 1},
+    "reason_code": {"type": "string", "minLength": 1, "maxLength": 128},
+    "required_decision": {"type": "string", "minLength": 1, "maxLength": 256},
+    "missing_capabilities": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "external_dependency": {"oneOf": [{"type": "string", "minLength": 1, "maxLength": 256}, {"type": "null"}]},
+    "repair_attempts": {"type": "integer", "minimum": 0, "maximum": 100},
+    "evidence": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref"],
+        "properties": {
+          "ref": {"type": "string", "minLength": 1, "maxLength": 2048},
+          "node_id": {"$ref": "#/$defs/id"},
+          "error_code": {"type": "string", "maxLength": 128},
+          "detail": {"type": "string", "maxLength": 2048}
+        }
+      }
+    },
+    "operation_key": {"type": "string", "minLength": 1, "maxLength": 256}
+  },
+  "$defs": {"id": {"type": "string", "minLength": 1, "maxLength": 256}}
+}
