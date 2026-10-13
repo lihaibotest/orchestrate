@@ -293,6 +293,12 @@ class WorkflowCompilerTests(unittest.TestCase):
         parameters = invoke["parameters"]
         self.assertEqual(parameters["options"]["timeout"], 17000)  # type: ignore[index]
         body = str(parameters["jsonBody"])  # type: ignore[index]
+        self.assertIn("={{ { ", body)
+        self.assertNotIn("Object.assign", body)
+        self.assertNotIn("...$json", body)
+        self.assertNotIn("String(", body)
+        self.assertNotIn("Number(", body)
+        self.assertNotIn(" || ", body)
         for field in (
             "correlation_id",
             "workflow_family_id",

@@ -51,11 +51,7 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
 
     @staticmethod
     def _idempotency_expression(node_id: str) -> str:
-        encoded_node = json.dumps(node_id, ensure_ascii=True)
-        return (
-            "={{ String($json.execution_id || $execution.id) + ':' + "
-            f"{encoded_node} + ':' + String($json.attempt || 1) + ':invoke' }}"
-        )
+        return "={{ $execution.id }}"
 
     @classmethod
     def _invocation_body(cls, execution_ir: ExecutionIR, node: IRNode) -> str:
@@ -73,17 +69,15 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
             f"{json.dumps(key)}: {json.dumps(value, sort_keys=True, separators=(',', ':'))}"
             for key, value in fields.items()
         )
-        encoded_node = json.dumps(node.node_id, ensure_ascii=True)
         return (
-            "={{ { ...$json, "
+            "={{ { "
             f"{constants}, "
             '"session_id": $json.session_id, '
             '"correlation_id": $json.correlation_id, '
-            '"execution_id": String($json.execution_id || $execution.id), '
-            '"attempt": Number($json.attempt || 1), '
-            '"input_refs": ($json.input_refs || []), '
-            '"idempotency_key": String($json.execution_id || $execution.id) + ":" + '
-            f"{encoded_node} + ':' + String($json.attempt || 1) + ':invoke' "
+            '"execution_id": $execution.id, '
+            '"attempt": 1, '
+            '"input_refs": $json.input_refs, '
+            '"idempotency_key": $execution.id '
             "} }}"
         )
 
@@ -232,7 +226,19 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
                     "httpHeaderAuth": {"id": self.config.webhook_credential_ref}
                 },
                 "webhookId": f"execution-orchestrator-{ir_hash[:32]}",
-            }
+            },
+            # Keep the authenticated webhook for automation and expose a
+            # native n8n trigger so an operator can run the published workflow
+            # directly from the editor. Both triggers feed the same immutable
+            # Execution IR graph.
+            {
+                "id": "orchestrator-manual-start",
+                "name": "orchestrator::manual-start",
+                "type": "n8n-nodes-base.manualTrigger",
+                "typeVersion": 1,
+                "position": [0, 180],
+                "parameters": {},
+            },
         ]
         levels = self._levels(execution_ir)
         rows: dict[int, int] = {}
@@ -257,6 +263,7 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
             target = self._node_name(node.node_id)
             if not node.depends_on:
                 connect(trigger_name, target)
+                connect("orchestrator::manual-start", target)
                 continue
             for index, dependency in enumerate(node.depends_on):
                 target_index = index if node.node_type == "join" else 0

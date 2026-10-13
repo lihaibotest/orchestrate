@@ -205,6 +205,38 @@ create table context_outbox (
 );
 create index idx_context_outbox_pending on context_outbox(status, next_attempt_at, created_at);
 
+-- P0-11 durable CMM sync facts (canonical deployment shape is migration 0010).
+create table if not exists cmm_context_event (
+    event_id text primary key,
+    event_type text not null,
+    tenant_id text not null,
+    correlation_id text not null,
+    workflow_family_id text not null,
+    workflow_version integer not null check (workflow_version > 0),
+    execution_id text,
+    node_id text,
+    attempt_no integer,
+    payload jsonb not null default '{}'::jsonb,
+    occurred_at timestamptz not null,
+    created_at timestamptz not null default now()
+);
+create table if not exists cmm_outbox (
+    event_id text primary key references cmm_context_event(event_id) on delete cascade,
+    event_type text not null,
+    idempotency_key text not null unique,
+    payload jsonb not null,
+    tenant_id text not null,
+    correlation_id text not null,
+    status text not null default 'PENDING',
+    attempts integer not null default 0,
+    next_attempt_at timestamptz,
+    lease_until timestamptz,
+    last_error text,
+    created_at timestamptz not null default now(),
+    sent_at timestamptz
+);
+create index if not exists idx_cmm_outbox_lag on cmm_outbox(status, created_at);
+
 create table state_transition_history (
   transition_id bigserial primary key,
   aggregate_type text not null,

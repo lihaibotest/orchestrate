@@ -23,7 +23,7 @@
 
 **P0-11 CMM + Outbox**：get_view、append_event port；本地事务写 outbox，异步幂等发送；CMM 降级。DoD：CMM 断开不阻断已发布执行。
 
-**P0-12 E2E**：Plan→Snapshot→IR→SelfTest→Publish→Execution→Artifact→terminal→CMM。DoD：核心验收全部通过。
+**P0-12 E2E**：Plan→Snapshot→IR→SelfTest→Publish→Execution→Runtime Event→ArtifactRef→terminal→CMM Outbox。DoD：`scripts/check-p0-12.sh` 通过 migration up/down、P0-02～P0-11 全量回归、INT-01B happy path 和 Blueprint/Execute replay、Publish/Execute response loss、Runtime Event duplicate/missing、Agent stalled、Artifact hash mismatch、CMM disconnect/publisher recovery 六个故障场景；输出结构化 JSON/Markdown 报告。真实 n8n/Agent/MinIO/CMM 依赖缺失时必须报告 `BLOCKED_EXTERNAL`，不得以 Fake 结果冒充；仅编排既有 ports，不新增产品功能。
 
 ## P1 — 增量恢复
 P1-01 Checkpoint/input_fingerprint；P1-02 Evaluation/quality/reusable；P1-03 invalidation/downstream closure/Resume Root；P1-04 PATCH 新版本谱系与 reused_nodes/invalidated_nodes。DoD：V1 前序成功、后序低质量时 V2 不重跑可信前序节点。

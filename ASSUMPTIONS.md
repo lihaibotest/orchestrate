@@ -27,6 +27,7 @@
 - `contracts/execution-ir.schema.yaml` 将 `agent_binding` 声明为 `additionalProperties: true`，没有明确禁止 Secret，也没有强制 `agent_id/version/endpoint/schema/credential_ref` 的结构；`edges` 未关闭额外字段，`artifacts`、`checkpoints` 只有宽泛 object。
 - `contracts/runtime-event.schema.yaml` 没有把详细设计要求的 `agent_id`、`attempt`、`duration_ms`、`artifact_refs`、`checkpoint_ref` 等作为统一最小必填集合，`payload` 也未定义敏感字段边界。
 - `contracts/context-event.schema.yaml` 缺少跨租户/Workflow Family 的关联约束，不能单独保证事件可追溯和幂等。
+ - P0-11 CMM 外部协议仍为 TBD-03；本实现只定义 `CMMPort.get_view`/`append_event`，不假设服务端字段或 endpoint。`cmm_context_event` 与 `cmm_outbox` 通过 0010 migration 独立持久化，旧 P0 migration 只在显式 P0-11 opt-in 时应用。
 - 处理策略：P0-05 采用内部不可变 DTO + 确定性 Validator；Schema 文件只作为外部契约，补充版本化约束、Secret 扫描、身份一致性和闭合对象规则，直到上游协议确认前不宣称为最终协议。
 
 ### REVIEW-02：API 契约不完整

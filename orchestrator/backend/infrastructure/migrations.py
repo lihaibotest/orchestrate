@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 import re
 from typing import Any, Callable
@@ -79,6 +80,12 @@ class PostgresMigrationRunner:
             if version in migrations:
                 raise ValueError(f"duplicate migration version: {version}")
             migrations[version] = path
+        # Keep the historical P0-01..P0-10 gates reproducible while P0-11 is
+        # opt-in until its dedicated gate enables the new schema. Production
+        # deployments should set P0_11_POSTGRES_DSN (or the explicit feature
+        # flag) before applying migration 0010.
+        if not os.getenv("P0_11_POSTGRES_DSN") and os.getenv("ORCHESTRATOR_ENABLE_P0_11") != "1":
+            migrations = {version: path for version, path in migrations.items() if version < 10}
         return migrations
 
     @staticmethod

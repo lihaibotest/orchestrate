@@ -1,13 +1,16 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 title: ContextEvent
 type: object
-required: [event_id, event_type, payload, timestamp]
+required: [event_id, event_type, tenant_id, correlation_id, workflow_family_id, workflow_version, payload, timestamp]
 properties:
   event_id: {type: string, minLength: 1}
   event_type:
     type: string
     enum: [WORKFLOW_VERSION_CREATED, WORKFLOW_SELF_TESTED, EXECUTION_STARTED, NODE_STATE_CHANGED, NODE_EVALUATED, ARTIFACT_REGISTERED, CHECKPOINT_CREATED, WORKFLOW_REPAIR_APPLIED, WORKFLOW_COMPLETED, MEMORY_SUMMARY_UPDATED]
   timestamp: {type: string, format: date-time}
+  tenant_id: {type: string, minLength: 1}
+  workflow_family_id: {type: string, minLength: 1}
+  workflow_version: {type: integer, minimum: 1}
   execution_id: {type: [string, 'null']}
   workflow_version: {type: [integer, 'null']}
   node_id: {type: [string, 'null']}
@@ -16,3 +19,4 @@ properties:
   request_id: {type: [string, 'null']}
   error_code: {type: [string, 'null']}
   payload: {type: object}
+additionalProperties: false

@@ -1,0 +1,167 @@
+{
+  "schema_version": "planning-blueprint.v3",
+  "contract_version": "orchestration.v1.1",
+  "created_reason": "REAL_AGENT_COMPATIBILITY_TEST",
+  "plan_id": "pln_real_agent_smoke_worker1_word_report_001",
+  "plan_version": 1,
+  "workflow_version": 0,
+  "idempotency_key": "pln_real_agent_smoke_worker1_word_report_001:v1",
+  "session_id": "ses_real_agent_smoke_worker1_word_report_001",
+  "intent_id": "int_real_agent_smoke_worker1_word_report_001",
+  "intent_revision": 1,
+  "goal": {
+    "goal_id": "real-agent-smoke:worker-1-word-report",
+    "objective": "由 Word Agent 生成测试文档，交给 worker-1 执行，再由 Report Agent 汇总生成最终报告",
+    "criteria": ["WORD_ARTIFACT_CREATED", "TEST_EXECUTION_COMPLETED", "REPORT_ARTIFACT_CREATED"]
+  },
+  "inputs": {
+    "worker_service_ref": "worker-1",
+    "worker_name": "worker-1",
+    "word_execution_id": "real-agent-smoke-worker1-word-report-001",
+    "report_execution_id": "real-agent-smoke-worker1-word-report-001",
+    "word_version": "smoke-v1",
+    "user_intent": "生成 smart-test-platform V6.2 的版本冒烟测试文档和测试用例",
+    "upload_to_minio": true,
+    "test_path": "cases/test_TP003_test",
+    "timeout": 300,
+    "generate_allure": true,
+    "upload_final_to_minio": true
+  },
+  "retry_policy": {
+    "backoff_seconds": 2,
+    "max_attempts": 2,
+    "max_backoff_seconds": 10,
+    "retry_on": ["timeout", "network", "http_5xx"],
+    "timeout_seconds": 360
+  },
+  "execution_policy": {
+    "allow_rebinding": false,
+    "allow_replan": false,
+    "side_effect_approval": "reject_unsafe"
+  },
+  "constraints": {
+    "max_agent_calls": 6,
+    "max_duration_seconds": 900,
+    "max_parallelism": 1,
+    "artifact_mode": "WHOLE_ARTIFACT",
+    "external_registry_mode": "DEFERRED_TEST_BINDING",
+    "cmm_mode": "DISABLED_FOR_COMPATIBILITY_TEST"
+  },
+  "timeout_policy": {
+    "seconds": 900
+  },
+  "tasks": [
+    {
+      "task_id": "generate-word-documents",
+      "objective": "调用 Word Agent 生成测试文档并上传到 MinIO",
+      "capabilities": ["generate_test_document"],
+      "depends_on": [],
+      "inputs": {
+        "user_intent": "blueprint.inputs.user_intent",
+        "execution_id": "blueprint.inputs.word_execution_id",
+        "version": "blueprint.inputs.word_version",
+        "upload_to_minio": "blueprint.inputs.upload_to_minio"
+      },
+      "outputs": [
+        {
+          "output_id": "word-minio-manifest",
+          "artifact_type": "FILE",
+          "file_name": "word-agent-minio-manifest.json",
+          "media_type": "application/json",
+          "schema": {
+            "type": "object",
+            "required": ["success", "execution_id", "minio_urls"],
+            "properties": {
+              "success": {"type": "boolean"},
+              "execution_id": {"type": "string"},
+              "minio_urls": {"type": "object"},
+              "generated_files": {"type": "array"}
+            }
+          },
+          "required": true
+        }
+      ],
+      "completion_criteria": [],
+      "side_effect": "idempotent_write"
+    },
+    {
+      "task_id": "execute-cases",
+      "objective": "调用 worker-1 从 Word Agent 的 MinIO 产物下载文档并执行 TP003 测试",
+      "capabilities": ["execute_cases"],
+      "depends_on": ["generate-word-documents"],
+      "inputs": {
+        "worker_service_ref": "blueprint.inputs.worker_service_ref",
+        "worker_name": "blueprint.inputs.worker_name",
+        "execution_id": "blueprint.inputs.report_execution_id",
+        "version": "blueprint.inputs.word_version",
+        "test_path": "blueprint.inputs.test_path",
+        "timeout": "blueprint.inputs.timeout",
+        "generate_allure": "blueprint.inputs.generate_allure"
+      },
+      "input_bindings": [
+        {
+          "binding_mode": "WHOLE_ARTIFACT",
+          "source": {
+            "source_type": "TASK_OUTPUT",
+            "source_task_id": "generate-word-documents",
+            "output_id": "word-minio-manifest"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "output_id": "worker-result",
+          "artifact_type": "FILE",
+          "file_name": "worker-result.json",
+          "media_type": "application/json",
+          "schema": {
+            "type": "object",
+            "required": ["success", "execution_id", "upload"],
+            "properties": {
+              "success": {"type": "boolean"},
+              "execution_id": {"type": "string"},
+              "run": {"type": "object"},
+              "upload": {"type": "object"}
+            }
+          },
+          "required": true
+        }
+      ],
+      "completion_criteria": [],
+      "side_effect": "idempotent_write"
+    },
+    {
+      "task_id": "generate-final-report",
+      "objective": "调用 Report Agent 消费 worker-1 的测试结果并生成最终报告",
+      "capabilities": ["generate_report"],
+      "depends_on": ["execute-cases"],
+      "inputs": {
+        "worker_name": "blueprint.inputs.worker_name",
+        "execution_id": "blueprint.inputs.report_execution_id",
+        "upload_final_to_minio": "blueprint.inputs.upload_final_to_minio"
+      },
+      "input_bindings": [
+        {
+          "binding_mode": "WHOLE_ARTIFACT",
+          "source": {
+            "source_type": "TASK_OUTPUT",
+            "source_task_id": "execute-cases",
+            "output_id": "worker-result"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "output_id": "final-report",
+          "artifact_type": "FILE",
+          "file_name": "test_report_allInOne.docx",
+          "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "schema": {"type": "object"},
+          "required": true
+        }
+      ],
+      "completion_criteria": [],
+      "side_effect": "idempotent_write"
+    }
+  ]
+}

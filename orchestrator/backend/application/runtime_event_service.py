@@ -95,12 +95,14 @@ class ReconciliationService:
         transitions: StateTransitionService,
         artifact_manager: ArtifactManagerPort | None = None,
         facts_ports: tuple[RuntimeFactsPort, ...] = (),
+        context_bridge: object | None = None,
     ) -> None:
         self.events = events
         self.executions = executions
         self.transitions = transitions
         self.artifact_manager = artifact_manager
         self.facts_ports = tuple(facts_ports)
+        self.context_bridge = context_bridge
         self._lock = RLock()
 
     @staticmethod
@@ -330,10 +332,12 @@ class RuntimeEventService:
         events: RuntimeEventPort,
         reconciliation: ReconciliationService,
         normalizer: RuntimeEventNormalizer | None = None,
+        context_bridge: object | None = None,
     ) -> None:
         self.events = events
         self.reconciliation = reconciliation
         self.normalizer = normalizer or RuntimeEventNormalizer()
+        self.context_bridge = context_bridge
 
     def reconcile(self, execution_id: str, *, tenant_id: str) -> ReconciliationResult:
         return self.reconciliation.reconcile(execution_id, tenant_id=tenant_id)
@@ -355,6 +359,16 @@ class RuntimeEventService:
             return ReconciliationResult(event.execution_id, (), True)
         try:
             observation = self.normalizer.normalize(event)
+            bridge = self.context_bridge
+            if bridge is not None:
+                emit = getattr(bridge, "from_fact", None)
+                if callable(emit):
+                    emit("NODE_STATE_CHANGED", tenant_id=event.tenant_id,
+                         correlation_id=event.correlation_id, workflow_family_id="runtime",
+                         workflow_version=event.workflow_version,
+                         execution_id=event.execution_id, node_id=event.node_id,
+                         attempt_no=event.attempt_no,
+                         payload={"observed_state": observation.observed_state})
             self.events.update_event_processing(tenant_id, event.event_id, "NORMALIZED")
             _stored, created = self.events.save_observation(observation)
             result = self.reconciliation.reconcile(event.execution_id, tenant_id=tenant_id)
