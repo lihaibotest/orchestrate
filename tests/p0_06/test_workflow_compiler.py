@@ -161,6 +161,7 @@ def _valid_fixture() -> tuple[ExecutionIR, object]:
             IREdge("agent-a", "join"),
         ),
         completion_criteria={"all_nodes": "completed"},
+        objective="run smoke workflow",
     )
     return execution_ir, snapshot
 
@@ -294,11 +295,18 @@ class WorkflowCompilerTests(unittest.TestCase):
         self.assertEqual(parameters["options"]["timeout"], 17000)  # type: ignore[index]
         body = str(parameters["jsonBody"])  # type: ignore[index]
         self.assertIn("={{ { ", body)
+        self.assertIn(
+            '"test_path":"/app/pytestproject/cases/test_TP82_test/test_TP82_test.py"',
+            body,
+        )
+        self.assertIn(
+            '$("orchestrator::start").item.json.body',
+            body,
+        )
         self.assertNotIn("Object.assign", body)
         self.assertNotIn("...$json", body)
         self.assertNotIn("String(", body)
         self.assertNotIn("Number(", body)
-        self.assertNotIn(" || ", body)
         for field in (
             "correlation_id",
             "workflow_family_id",
@@ -329,6 +337,59 @@ class WorkflowCompilerTests(unittest.TestCase):
         self.assertEqual(
             connections["ir::agent-b"]["main"][0][0]["index"],  # type: ignore[index]
             1,
+        )
+
+    def test_word_agent_timeout_has_a_two_minute_floor(self) -> None:
+        word_node = replace(
+            next(node for node in self.execution_ir.nodes if node.node_id == "agent-a"),
+            node_id="word_agent",
+        )
+        compiled = self.compiler._compile_node(self.execution_ir, word_node)
+        parameters = compiled["parameters"]
+        self.assertEqual(parameters["options"]["timeout"], 120000)  # type: ignore[index]
+
+    def test_word_agent_monitoring_uses_same_agent_name_for_start_and_end(self) -> None:
+        agent = next(
+            item for item in self.execution_ir.nodes if item.node_id == "agent-a"
+        )
+        assert agent.agent_binding is not None
+        word_binding = replace(agent.agent_binding, agent_id="word_agent")
+        word_agent = replace(agent, agent_binding=word_binding)
+        execution_ir = replace(
+            self.execution_ir,
+            nodes=tuple(
+                word_agent if item.node_id == "agent-a" else item
+                for item in self.execution_ir.nodes
+            ),
+        )
+
+        document = self.compiler.compile(execution_ir).mutable_document()
+        nodes = {item["name"]: item for item in document["nodes"]}  # type: ignore[index]
+        running_body = str(
+            nodes["monitor::word_agent::running"]["parameters"]["jsonBody"]
+        )
+        end_body = str(nodes["monitor::word_agent::end"]["parameters"]["jsonBody"])
+
+        self.assertIn('agentname: "word_agent"', running_body)
+        self.assertIn('status: "running"', running_body)
+        self.assertIn('agentname: "word_agent"', end_body)
+        self.assertIn('status: "end"', end_body)
+        self.assertNotIn("case-generator", running_body)
+        self.assertNotIn("case-executor", end_body)
+
+    def test_workflow_end_monitor_waits_for_execplan_terminals(self) -> None:
+        document = self.compiler.compile(self.execution_ir).mutable_document()
+        nodes = {item["name"]: item for item in document["nodes"]}  # type: ignore[index]
+        monitor = nodes["monitor::workflow::end"]
+        body = str(monitor["parameters"]["jsonBody"])
+        self.assertIn('agentname: "run smoke workflow"', body)
+        self.assertIn('status: "end"', body)
+        self.assertIn('plan_id: "task-compiler"', body)
+        self.assertIn('plan_version: String(1)', body)
+        self.assertIn('round_id: String($execution.id)', body)
+        self.assertEqual(
+            document["connections"]["ir::end"]["main"][0][0]["node"],  # type: ignore[index]
+            "monitor::workflow::end",
         )
 
     def test_undefined_node_semantics_and_non_http_endpoint_are_blocked(self) -> None:

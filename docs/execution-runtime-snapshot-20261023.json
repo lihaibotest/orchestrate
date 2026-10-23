@@ -1,0 +1,80 @@
+{
+  "snapshot_id": "execution-runtime-20261023-validated",
+  "recorded_at": "2026-10-23T20:07:39+08:00",
+  "purpose": "Reproducible conditions for the latest successful external-agent workflow run",
+  "successful_execution": {
+    "plan_id": "pln_01a16883-e256-7255-bf14-599d55e00647",
+    "plan_version": 1,
+    "blueprint_id": "blueprint-6ff07844e0e0864b69609a79c5826416",
+    "n8n_execution_id": "88",
+    "n8n_workflow_id": "orchv267aea0730825709ae9",
+    "n8n_workflow_name": "execution-orchestrator-wf-6cd4eb49bedb36806dffba1e-v1",
+    "n8n_status": "success",
+    "monitoring": {
+      "project_id": "smart-test-platform",
+      "task_id": "pln_01a16883-e256-7255-bf14-599d55e00647",
+      "run_id": 1,
+      "status": "completed",
+      "terminal_nodes": ["word_agent", "worker", "report_agent", "workflow"]
+    }
+  },
+  "projects": {
+    "execution_orchestrator": "/home/test/codex/p009-stage",
+    "word_agent": "/home/test/MinIO（复件）/test_word_gener_update_v5.0",
+    "worker": "/home/test/MinIO（复件）/worker-1",
+    "report_agent": "/home/test/MinIO（复件）/report_agent",
+    "monitoring_agent": "/home/test/AgentEvalTeam/AgentEvalTeam"
+  },
+  "host_services": {
+    "word_agent": {"command": "/home/test/anaconda3/envs/word_gen/bin/python api_service.py", "port": 4324},
+    "worker": {"command": "/home/test/anaconda3/envs/pytest/bin/python pytest_api.py", "port": 5000},
+    "report_agent": {"command": "/home/test/anaconda3/envs/report/bin/python web_app.py", "port": 6000},
+    "monitoring_agent": {"command": "/home/test/anaconda3/envs/agentevalteam/bin/python manage.py runserver 0.0.0.0:8080", "port": 8080}
+  },
+  "containers": {
+    "required": ["pg-fresh", "redis-fresh", "minio-fresh", "n8n-fresh", "worker-fresh", "orchestrator-gateway-dev", "p009-execution-service"],
+    "legacy_agents_not_used": ["module-dev-wordagent-wordagent-1", "module-dev-pytestproject-pytestproject-1", "module-dev-reportagent-reportagent-1"],
+    "ports": {"n8n": "5678", "minio_api": "9000", "minio_console": "9001", "gateway": "127.0.0.1:27880", "execution_service": "28020"}
+  },
+  "network": {
+    "docker_network": "agent-offline-bundle-20260625-portable-portable_default",
+    "docker_subnet": "172.26.0.0/16",
+    "docker_gateway": "172.26.0.1",
+    "n8n_ip": "172.26.0.8",
+    "execution_service_ip": "172.26.0.2",
+    "minio_network": {"name": "minio_n8n-net", "subnet": "172.23.0.0/16", "gateway": "172.23.0.1", "n8n_ip": "172.23.0.4", "minio_ip": "172.23.0.2"},
+    "n8n_monitoring_endpoint": "http://172.26.0.1:8080",
+    "agent_endpoints": {
+      "word_agent": "http://172.26.0.1:4324/generate",
+      "worker": "http://172.26.0.1:5000/api/pytest/run",
+      "report_agent": "http://172.26.0.1:6000/api/generate"
+    },
+    "ufw": {"enabled_at_boot": true, "allow_tcp_8080_from": "172.26.0.0/16"}
+  },
+  "minio": {
+    "endpoint": "127.0.0.1:9000",
+    "bucket": "ai-agents",
+    "object_key_prefixes": [
+      "word_agent/{plan_id}_{plan_version}_{n8n_execution_id}/",
+      "worker/{plan_id}_{plan_version}_{n8n_execution_id}/",
+      "report_agent/{plan_id}_{plan_version}_{n8n_execution_id}/"
+    ],
+    "forbidden_prefix": "ai-agents/ai-agents/"
+  },
+  "logs": {
+    "word_agent": "/home/test/MinIO（复件）/logs/word_agent/word_agent.log",
+    "worker": "/home/test/MinIO（复件）/logs/worker/worker-1.log",
+    "report_agent": "/home/test/MinIO（复件）/logs/report_agent/report_agent.log"
+  },
+  "persistence": {
+    "conditions_document": "docs/EXECUTION-CONDITIONS-20261023.md",
+    "compiler_changes": [
+      "orchestrator/backend/backends/n8n/workflow_compiler.py",
+      "orchestrator/backend/backends/n8n/compiler_v2.py",
+      "orchestrator/backend/services/n8n_workflow_compiler.py"
+    ],
+    "word_timeout_floor_ms": 120000,
+    "verification": "PYTHONPATH=orchestrator/backend /home/test/anaconda3/envs/SCG-Agent/bin/python -m unittest tests.p0_06.test_workflow_compiler -q",
+    "note": "Published immutable workflows are unchanged; the timeout floor applies to newly compiled workflows. Secrets and monitoring-agent source are intentionally excluded."
+  }
+}

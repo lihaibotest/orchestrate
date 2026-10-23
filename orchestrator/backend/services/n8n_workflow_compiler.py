@@ -50,6 +50,53 @@ def _evaluation_body_expression(*, stage: str, node_id: str | None = None) -> st
     )
 
 
+def _artifact_agent_name(agent_id: str) -> str:
+    """Map deployment registry IDs to the stable MinIO Agent namespace."""
+    aliases = {
+        "agent_wordagent": "word_agent",
+        "agent_pytestproject": "worker",
+        "agent_reportagent": "report_agent",
+        "wordagent": "word_agent",
+        "pytestproject": "worker",
+        "reportagent": "report_agent",
+    }
+    normalized = str(agent_id).strip()
+    return aliases.get(normalized, normalized.removeprefix("agent_") or "agent")
+
+
+def _agent_body_expression(*, node: dict[str, object], spec: dict[str, object]) -> str:
+    """Decorate the legacy WorkflowSpec payload with execution context.
+
+    The V1 compiler is still used by the compatibility ingress.  Keeping the
+    context here ensures those workflows follow the same object-store layout
+    as V2-generated workflows.
+    """
+    node_id = str(node["node_id"])
+    agent_id = str(node.get("agent_id") or node_id)
+    agent_name = _artifact_agent_name(agent_id)
+    plan_id = str(spec.get("plan_id") or "")
+    plan_literal = json.dumps(plan_id)
+    incoming_plan = "($json.plan_id || ($json.blueprint && $json.blueprint.plan_id))"
+    agent_literal = json.dumps(agent_name)
+    # $json is intentionally spread first: existing blueprint inputs and
+    # whole-artifact bindings remain available to the Agent endpoint.
+    return (
+        '={{ { ...$json, "plan_id": '
+        f'{plan_literal} || {incoming_plan}, "plan_version": {int(spec["plan_version"])}, '
+        '"workflow_version": ' + str(int(spec["workflow_version"])) + ', '
+        '"execution_id": String($execution.id), "run_id": String($execution.id), '
+        '"request_id": String($execution.id), "node_id": ' + json.dumps(node_id) + ', '
+        '"agent_id": ' + json.dumps(agent_id) + ', "artifact_namespace": '
+        f'({plan_literal} || {incoming_plan}) + "_" + String({int(spec["plan_version"])}) + "_" + String($execution.id), '
+        '"artifact_root": "ai-agents/" + ' + agent_literal + ' + "/" + '
+        f'({plan_literal} || {incoming_plan}) + "_" + String({int(spec["plan_version"])}) + "_" + String($execution.id) + "/", '
+        '"artifact_path": "ai-agents/" + ' + agent_literal + ' + "/" + '
+            f'({plan_literal} || {incoming_plan}) + "_" + String({int(spec["plan_version"])}) + "_" + String($execution.id) + "/"'
+        ', "input_artifact_root": $json.artifact_root || $json.input_artifact_root || null, '
+        '"word_artifact_root": $json.word_artifact_root || $json.input_artifact_root || $json.artifact_root || null } }}'
+    )
+
+
 def compile_workflow_spec(
     spec: dict[str, object],
     *,
@@ -115,10 +162,10 @@ def compile_workflow_spec(
             "parameters": {
                 "method": "POST",
                 "url": agent.endpoint,
-                "jsonBody": "={{ $json }}",
+                "jsonBody": _agent_body_expression(node=node, spec=spec),
                 "sendHeaders": True,
                 "headerParameters": {"parameters": [{"name": "X-Orchestrator-Idempotency-Key", "value": "={{ $json.idempotency_key }}"}]},
-                "options": {"timeout": int(retry.get("timeout_seconds", 30)) * 1000, "response": {"response": {"neverError": True}}},
+                "options": {"timeout": max(int(retry.get("timeout_seconds", 30)) * 1000, 120000) if node_id == "word_agent" else int(retry.get("timeout_seconds", 30)) * 1000, "response": {"response": {"neverError": True}}},
             },
             "credentials": {"httpHeaderAuth": {"id": agent.n8n_credential_ref}},
         })
@@ -186,9 +233,16 @@ def compile_workflow_spec(
     return {
         "name": f"orchestrator-{spec['session_id']}-v{spec['workflow_version']}",
         "session_id": spec["session_id"],
+        "plan_id": spec.get("plan_id"),
         "plan_version": spec["plan_version"],
         "workflow_version": spec["workflow_version"],
         "run_mode": spec["run_mode"],
+        "metadata": {
+            "artifact_namespace_template": (
+                f"{spec.get('plan_id') or '<plan_id>'}_{spec['plan_version']}_<execution_id>"
+            ),
+            "artifact_root_template": "ai-agents/{agent}/<plan_id>_<plan_version>_<execution_id>/",
+        },
         "spec": json.loads(json.dumps(spec, sort_keys=True)),
         "nodes": compiled_nodes,
         "connections": connections,
