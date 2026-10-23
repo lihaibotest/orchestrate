@@ -156,8 +156,16 @@ prefix; a URI may display the bucket followed by that key.
 
 1. Start `pg-fresh`, `redis-fresh`, `minio-fresh`, `n8n-fresh`, and
    `worker-fresh`, then ensure the two required n8n/worker network attachments.
-2. Start the host Word, Worker, Report, and real monitoring services from the
-   paths above. Confirm listeners on `4324`, `5000`, `6000`, and `8080`.
+2. Start the three host Agents in one command, from any working directory:
+
+   ```bash
+   /home/test/codex/p009-stage/scripts/start-external-agents.sh
+   ```
+
+   The script starts only missing services and writes to the established Agent
+   log paths. Use `start-external-agents.sh status` for a read-only port/PID
+   check. Start the real monitoring service separately from the path above;
+   confirm listeners on `4324`, `5000`, `6000`, and `8080`.
 3. Confirm gateway and execution service listeners on `27880` and `28020`, and
    n8n on `5678`.
 4. For a reused monitoring `run_id`, reset only that run to `running`, clear
