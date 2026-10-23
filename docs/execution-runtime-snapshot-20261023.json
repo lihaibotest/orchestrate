@@ -74,6 +74,14 @@
       "orchestrator/backend/services/n8n_workflow_compiler.py"
     ],
     "word_timeout_floor_ms": 120000,
+    "external_agent_storage_sources": {
+      "note": "Sources remain outside this Git repository; hashes identify the validated files without copying credential fallbacks into the repository.",
+      "files": {
+        "/home/test/MinIO（复件）/test_word_gener_update_v5.0/utils/minio_storage.py": "dbb551c47cc83a0a9786cf0043bf0d5e948a4a867f5816573844c3e14ab1aba2",
+        "/home/test/MinIO（复件）/worker-1/utils/minio_storage.py": "0b89d8450fd067e727a330f989a2144cba1646792346272f23d2b04d83c79660",
+        "/home/test/MinIO（复件）/report_agent/utils/minio_storage.py": "a8ea5a45de154588f5daf7f64becf7639a29dae40e9132b346d453093ae6a249"
+      }
+    },
     "verification": "PYTHONPATH=orchestrator/backend /home/test/anaconda3/envs/SCG-Agent/bin/python -m unittest tests.p0_06.test_workflow_compiler -q",
     "note": "Published immutable workflows are unchanged; the timeout floor applies to newly compiled workflows. Secrets and monitoring-agent source are intentionally excluded."
   }
