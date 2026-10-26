@@ -441,6 +441,12 @@ class ExecutionIR:
     artifacts: tuple[ArtifactDeclaration, ...] = ()
     checkpoints: tuple[CheckpointDeclaration, ...] = ()
     recovery: RecoveryMetadata = field(default_factory=RecoveryMetadata)
+    # The upstream PlanVersion is distinct from the backend WorkflowVersion.
+    # Legacy callers default to one; blueprint generation supplies the actual
+    # immutable PlanVersion for artifact namespacing and runtime correlation.
+    plan_version: int = 1
+    # Root ExecPlan objective used as the workflow-level monitoring identity.
+    objective: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("ir_version", "workflow_family_id", "task_id", "registry_snapshot_id"):
@@ -449,6 +455,13 @@ class ExecutionIR:
             raise ValueError("ir_version must be 1.0")
         if self.workflow_version < 1:
             raise ValueError("workflow_version must be positive")
+        # V3 compatibility plans historically used PlanVersion 0; V4 and
+        # newer ingress contracts enforce a minimum of 1 before reaching the
+        # IR.  Keep the IR permissive so those immutable legacy plans remain
+        # replayable while still preserving the value in artifact paths.
+        if self.plan_version < 0:
+            raise ValueError("plan_version must not be negative")
+        object.__setattr__(self, "objective", _optional_text(self.objective, "objective"))
         object.__setattr__(
             self, "context_view_id", _optional_text(self.context_view_id, "context_view_id")
         )
@@ -479,6 +492,8 @@ class ExecutionIR:
             "ir_version": self.ir_version,
             "workflow_family_id": self.workflow_family_id,
             "workflow_version": self.workflow_version,
+            "plan_version": self.plan_version,
+            "objective": self.objective,
             "task_id": self.task_id,
             "registry_snapshot_id": self.registry_snapshot_id,
             "context_view_id": self.context_view_id,

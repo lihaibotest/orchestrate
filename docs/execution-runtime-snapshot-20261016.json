@@ -1,0 +1,39 @@
+{
+  "captured_at": "2026-10-16",
+  "workflow_id": "orchv2f09f0c0da47dd91457",
+  "workflow_family_id": "wf-be6b70c0da3e51c00dbfec89",
+  "workflow_version": 1,
+  "successful_n8n_execution_id": "35",
+  "trigger_modes": {
+    "webhook": {
+      "node": "orchestrator::start",
+      "behavior": "Uses the POST request body as the Plan input, including the submitted test_path."
+    },
+    "manual": {
+      "node": "orchestrator::manual-start",
+      "behavior": "Uses defaults only when the webhook trigger did not execute.",
+      "default_test_path": "/app/pytestproject/cases/test_TP82_test/test_TP82_test.py",
+      "default_timeout": 300,
+      "default_generate_allure": true,
+      "default_use_xvfb": false
+    },
+    "compatibility_verified": true,
+    "compiler_tests": "9/9 passed"
+  },
+  "default_agent_network": "agent-offline-bundle-20260625-portable-portable_default",
+  "n8n_network": "minio_n8n-net",
+  "containers": [
+    {"name": "pg-fresh", "role": "postgres", "status": "running", "ports": ["5432/tcp"]},
+    {"name": "redis-fresh", "role": "n8n_queue", "status": "running", "ports": ["6379/tcp"]},
+    {"name": "minio-fresh", "role": "artifact_store", "status": "running", "ports": ["9000:9000", "9001:9001"]},
+    {"name": "n8n-fresh", "role": "n8n_main", "status": "running", "ports": ["5678:5678"]},
+    {"name": "worker-fresh", "role": "n8n_queue_worker", "status": "running", "ports": ["5678/tcp"]},
+    {"name": "module-dev-wordagent-wordagent-1", "role": "word_agent", "status": "running", "ports": ["4324/tcp"]},
+    {"name": "module-dev-pytestproject-pytestproject-1", "role": "worker", "status": "running", "ports": ["5000/tcp"]},
+    {"name": "module-dev-reportagent-reportagent-1", "role": "report_agent", "status": "running", "ports": ["6000/tcp"]},
+    {"name": "orchestrator-gateway-dev", "role": "workflow_gateway", "status": "running", "ports": ["127.0.0.1:27880:8080"]},
+    {"name": "p009-execution-service", "role": "execution_api", "status": "running", "ports": ["0.0.0.0:28020:8020"]}
+  ],
+  "report_path": "/data/reports/test_report_allInOne.docx",
+  "secret_directory": "/home/test/codex/p009-stage/.runtime-secrets"
+}

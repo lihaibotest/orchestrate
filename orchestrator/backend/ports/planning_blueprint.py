@@ -17,6 +17,8 @@ class PlanningBlueprintInboundPort(Protocol):
         *,
         tenant_id: str,
         correlation_id: str | None = None,
+        traceparent: str | None = None,
+        tracestate: str | None = None,
         idempotency_key: str | None = None,
     ) -> BlueprintIngestionResult: ...
 

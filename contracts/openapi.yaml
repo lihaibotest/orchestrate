@@ -4,19 +4,89 @@ info:
   version: 0.1.0
   description: Initial coding contract. Endpoint field details remain subject to TBD-01/TBD-08 and source design review.
 paths:
-  /api/v1/planning-blueprints:
+  /api/v2/blueprints:
     post:
-      operationId: ingestPlanningBlueprintV3
+      operationId: submitTaskOrchestrationBlueprint
+      description: >-
+        Canonical task-orchestration ingress. Signed planning-agent callers may
+        submit the legacy planning-blueprint.v2 directly, or a planning-blueprint.v3/v4
+        execution plan (directly or wrapped as exec_plan).
+      parameters:
+        - {in: header, name: X-Orchestrator-Caller, required: true, schema: {type: string, enum: [planning-agent]}}
+        - {in: header, name: X-Orchestrator-Timestamp, required: true, schema: {type: string}}
+        - {in: header, name: X-Orchestrator-Nonce, required: true, schema: {type: string}}
+        - {in: header, name: X-Correlation-ID, required: true, schema: {type: string}}
+        - {in: header, name: X-Orchestrator-Signature, required: true, schema: {type: string}}
+        - {in: header, name: X-Tenant-Id, schema: {type: string}}
+        - {in: header, name: Idempotency-Key, schema: {type: string}}
+        - {in: header, name: traceparent, schema: {type: string}}
+        - {in: header, name: tracestate, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '../orchestrator/schemas/v2/planning-blueprint.v2.json'
+                - $ref: './planning-blueprint.v3.schema.yaml'
+                - $ref: './planning-blueprint.v4.schema.yaml'
+                - type: object
+                  additionalProperties: false
+                  required: [exec_plan]
+                  properties:
+                    exec_plan:
+                      oneOf:
+                        - $ref: './planning-blueprint.v3.schema.yaml'
+                        - $ref: './planning-blueprint.v4.schema.yaml'
+                    launch_context: {type: object}
+      responses:
+        '202': {description: Blueprint accepted or queued}
+        '409': {description: Idempotency, version, or identity conflict}
+        '422': {description: Invalid blueprint, DAG, capability, or forbidden field}
+  /api/execution/v1/runs:
+    post:
+      deprecated: true
+      operationId: submitExecutionPlanV2
       parameters:
         - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
-        - {in: header, name: X-Correlation-Id, schema: {type: string}}
+        - {in: header, name: traceparent, schema: {type: string}}
+        - {in: header, name: tracestate, schema: {type: string}}
         - {in: header, name: Idempotency-Key, schema: {type: string}}
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: './planning-blueprint.v3.schema.yaml'
+              type: object
+              additionalProperties: false
+              required: [exec_plan]
+              properties:
+                exec_plan:
+                  $ref: './planning-blueprint.v4.schema.yaml'
+                launch_context:
+                  type: object
+                  additionalProperties: false
+      responses:
+        '202': {description: Execution plan accepted}
+        '409': {description: Idempotency or immutable version conflict}
+        '422': {description: Invalid V2.0 ExecPlan or forbidden runtime fields}
+  /api/v1/planning-blueprints:
+    post:
+      operationId: ingestPlanningBlueprint
+      parameters:
+        - {in: header, name: X-Tenant-Id, required: true, schema: {type: string}}
+        - {in: header, name: X-Correlation-Id, schema: {type: string}}
+        - {in: header, name: traceparent, schema: {type: string}}
+        - {in: header, name: tracestate, schema: {type: string}}
+        - {in: header, name: Idempotency-Key, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: './planning-blueprint.v3.schema.yaml'
+                - $ref: './planning-blueprint.v4.schema.yaml'
       responses:
         '202': {description: Blueprint accepted by the inbound adapter}
         '409': {description: Idempotency or version conflict}

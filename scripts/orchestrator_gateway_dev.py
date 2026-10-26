@@ -60,6 +60,14 @@ EVALUATOR_OWNED_KEYS = {
     "evaluation", "evaluationid", "evaluator", "evaluatorid", "evaluatoropinion",
     "quality", "qualityscore", "qualityverdict", "recommendation", "verdict",
 }
+# The task-orchestration Plan uses dashboard agent names as capability refs,
+# while the legacy registration file exposes contract capability names. Keep
+# both names in the gateway projection so the binding remains deterministic.
+CAPABILITY_ALIASES = {
+    "agent_wordagent": "word_agent",
+    "agent_pytestproject": "worker",
+    "agent_reportagent": "report_agent",
+}
 state_lock = threading.RLock()
 start_lock = threading.Lock()
 workflows: dict[str, dict] = {}
@@ -161,6 +169,10 @@ def docker_json_import(document: object, *, kind: str) -> None:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json") as handle:
         json.dump(document, handle, ensure_ascii=False, separators=(",", ":"))
         handle.flush()
+        # n8n runs as a non-root user in its container.  docker cp preserves
+        # the source mode, while NamedTemporaryFile defaults to 0600, so make
+        # the short-lived import document readable before copying it across.
+        os.chmod(handle.name, 0o644)
         run_checked(["docker", "cp", handle.name, f"{N8N_CONTAINER}:{remote_path}"])
     try:
         command = [
@@ -419,10 +431,14 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     parsed = urlparse(endpoint)
                     if parsed.hostname in {"wordagent", "pytestproject", "reportagent"}:
                         endpoint = parsed._replace(netloc=f"{REGISTRY_ENDPOINT_HOST}:{parsed.port or 80}").geturl()
+                capabilities = list(item.get("capabilities") or [])
+                alias = CAPABILITY_ALIASES.get(str(item.get("agent_id", "")))
+                if alias and alias not in capabilities:
+                    capabilities.append(alias)
                 candidates.append({
                     "agent_id": item.get("agent_id", "unknown"),
                     "role": "business",
-                    "capabilities": item.get("capabilities") or [],
+                    "capabilities": capabilities,
                     "health": "healthy" if item.get("status") == "active" else "degraded",
                     "endpoint": endpoint,
                     "input_schema": {"type": "object", "additionalProperties": True},

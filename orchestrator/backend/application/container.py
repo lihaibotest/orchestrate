@@ -166,6 +166,8 @@ class ApplicationContainer:
             compiler = N8nWorkflowCompilerAdapter(
                 N8nCompilerConfig(
                     webhook_credential_ref=self.settings.n8n_webhook_credential_ref,
+                    monitoring_endpoint=self.settings.monitoring_endpoint,
+                    task_orchestration_endpoint=self.settings.task_orchestration_endpoint,
                 )
             )
             self._workflow_compilation_service = WorkflowCompilationService(
@@ -325,6 +327,8 @@ class ApplicationContainer:
                 compiler = N8nWorkflowCompilerAdapter(
                     N8nCompilerConfig(
                         webhook_credential_ref=self.settings.n8n_webhook_credential_ref,
+                        monitoring_endpoint=self.settings.monitoring_endpoint,
+                        task_orchestration_endpoint=self.settings.task_orchestration_endpoint,
                     )
                 )
                 compilation = WorkflowCompilationService(validation, compiler, repository)

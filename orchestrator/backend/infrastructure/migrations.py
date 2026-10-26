@@ -84,7 +84,11 @@ class PostgresMigrationRunner:
         # opt-in until its dedicated gate enables the new schema. Production
         # deployments should set P0_11_POSTGRES_DSN (or the explicit feature
         # flag) before applying migration 0010.
-        if not os.getenv("P0_11_POSTGRES_DSN") and os.getenv("ORCHESTRATOR_ENABLE_P0_11") != "1":
+        if os.getenv("P0_12_POSTGRES_DSN") or os.getenv("ORCHESTRATOR_ENABLE_P0_12") == "1":
+            return migrations
+        if os.getenv("P0_11_POSTGRES_DSN") or os.getenv("ORCHESTRATOR_ENABLE_P0_11") == "1":
+            return {version: path for version, path in migrations.items() if version < 11}
+        else:
             migrations = {version: path for version, path in migrations.items() if version < 10}
         return migrations
 

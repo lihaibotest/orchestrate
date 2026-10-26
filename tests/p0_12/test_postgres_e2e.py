@@ -39,16 +39,16 @@ class P012PostgresMigrationTests(unittest.TestCase):
             connection.close()
 
     def test_full_migration_up_down_isolated_schema(self) -> None:
-        previous = os.environ.get("ORCHESTRATOR_ENABLE_P0_11")
-        os.environ["ORCHESTRATOR_ENABLE_P0_11"] = "1"
+        previous = os.environ.get("ORCHESTRATOR_ENABLE_P0_12")
+        os.environ["ORCHESTRATOR_ENABLE_P0_12"] = "1"
         try:
-            self.assertEqual(self.runner.migrate(), 10)
+            self.assertEqual(self.runner.migrate(), 11)
             self.connected = True
+            self.assertEqual(self.runner.applied_versions(), list(range(1, 12)))
+            self.assertEqual(self.runner.migrate(direction="down"), 11)
             self.assertEqual(self.runner.applied_versions(), list(range(1, 11)))
-            self.assertEqual(self.runner.migrate(direction="down"), 10)
-            self.assertEqual(self.runner.applied_versions(), list(range(1, 10)))
         finally:
             if previous is None:
-                os.environ.pop("ORCHESTRATOR_ENABLE_P0_11", None)
+                os.environ.pop("ORCHESTRATOR_ENABLE_P0_12", None)
             else:
-                os.environ["ORCHESTRATOR_ENABLE_P0_11"] = previous
+                os.environ["ORCHESTRATOR_ENABLE_P0_12"] = previous

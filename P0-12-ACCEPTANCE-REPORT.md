@@ -1,27 +1,19 @@
 # P0-12 Acceptance Report
 
-- Conclusion: **P0_BLOCKED**
-- Mode: `full`
-- Generated: `2026-10-12T02:17:43.892481+00:00`
-- Migration: `PASS` (expected latest version 10)
+- Conclusion: **P0_CONDITIONALLY_ACCEPTED**
+- Mode: `external`
+- Generated: `2026-10-14T06:27:34.415111+00:00`
+- Migration: `PASS` (expected latest version 11)
 - External E2E: `BLOCKED_EXTERNAL`
 
 ## Baseline
 
 - Git branch: `main`
-- Git commit: `2f783da297fae0ce48cbc1357fe8bd8ea6c69687`
+- Git commit: `dbf218ce83c76b5f1fc7e65bc8684b67b200aba6`
 - Worktree has uncommitted changes: `yes` (preserved as part of this implementation)
 - Python: `3.10.20`
 - PostgreSQL gate: `PASS`; DSN supplied: `yes`
 - n8n/Agent/MinIO/CMM: external execution is only run with the explicitly supplied approved command; otherwise status remains `BLOCKED_EXTERNAL`.
-
-## Real External Boundary Smoke
-
-- n8n `n8n-fresh`: health PASS; isolated workflow validate/import/canary/activate/webhook PASS; PostgreSQL `execution_entity` evidence `id=6,status=success`; workflow retired and n8n health restored.
-- Word Agent `/health`: PASS (`127.0.0.1:4324`).
-- Report Agent `/api/health`: PASS (`127.0.0.1:6000`).
-- MinIO: project `MinioArtifactAdapter` put/stat/get/validate/delete/hash PASS in isolated bucket/prefix; cleanup PASS.
-- These probes validate real external boundaries only. They do not prove a real business Agent output flowing through Artifact registration, Runtime reconciliation and CMM delivery, so the conclusion remains `P0_BLOCKED` with `BLOCKED_EXTERNAL`.
 
 ## Verification Groups
 
@@ -125,7 +117,7 @@
   "status": "PASS",
   "tenant_id": "tenant-a",
   "workflow_family_id": "wf-de745131945f165e13a2f874",
-  "workflow_hash": "aa51575273fa50ad40a9f1359c1cce5eacf37b3a57aa56656b39b5e5b06b13f3",
+  "workflow_hash": "0a9cf1a0c57c87b6b5186e42ecacce593c052d41ea9f75eaf3752380d0c519b6",
   "workflow_version": 1
 }
 ```

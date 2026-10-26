@@ -29,6 +29,9 @@ class N8nCompilerConfig:
     # compiled workflows can use the deployment-local address while retaining
     # the Docker integration-stack default.
     monitoring_endpoint: str = "http://172.26.0.1:8080"
+    # Task Orchestration receives the same per-Agent lifecycle boundary using
+    # its own reviewed contract and status vocabulary.
+    task_orchestration_endpoint: str = "http://172.26.0.1:7000"
     # The planning/orchestration layer may register the agent tree before
     # publishing a workflow.  In that mode the workflow must emit only
     # agent-status callbacks and must not overwrite the externally-owned tree.
@@ -39,6 +42,10 @@ class N8nCompilerConfig:
             raise ValueError("webhook_credential_ref must not be empty")
         if not self.webhook_path_prefix.strip().strip("/"):
             raise ValueError("webhook_path_prefix must not be empty")
+        if not self.monitoring_endpoint.strip():
+            raise ValueError("monitoring_endpoint must not be empty")
+        if not self.task_orchestration_endpoint.strip():
+            raise ValueError("task_orchestration_endpoint must not be empty")
 
 
 class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
@@ -259,6 +266,27 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
         )
 
     @staticmethod
+    def _task_status_body(
+        execution_ir: ExecutionIR,
+        *,
+        task_id: str,
+        status: str,
+    ) -> str:
+        """Build the reviewed Execution -> Task Orchestration status payload."""
+        if status not in {"running", "finish"}:
+            raise ValueError("task orchestration status must be running or finish")
+        return (
+            "={{ { "
+            f"agentname: {json.dumps(task_id)}, "
+            f"status: {json.dumps(status)}, "
+            "flag: 0, "
+            f"plan_id: {json.dumps(execution_ir.task_id)}, "
+            f"plan_version: String({json.dumps(execution_ir.plan_version)}), "
+            "round_id: String($execution.id) "
+            "} }}"
+        )
+
+    @staticmethod
     def _monitor_tree_body(execution_ir: ExecutionIR) -> str:
         children: list[dict[str, object]] = []
         for node in execution_ir.nodes:
@@ -308,6 +336,37 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
                 "specifyBody": "json",
                 "jsonBody": self._monitor_body(
                     execution_ir, agentname=agentname, status=status
+                ),
+                "options": {"timeout": 10000},
+            },
+            "retryOnFail": True,
+            "maxTries": 3,
+            "waitBetweenTries": 1000,
+        }
+
+    def _task_status_node(
+        self,
+        execution_ir: ExecutionIR,
+        *,
+        node_id: str,
+        task_id: str,
+        status: str,
+        position: list[int],
+    ) -> dict[str, object]:
+        endpoint = self.config.task_orchestration_endpoint.rstrip("/")
+        return {
+            "id": node_id,
+            "name": node_id,
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": position,
+            "parameters": {
+                "method": "POST",
+                "url": f"{endpoint}/api/execution/task-status",
+                "sendBody": True,
+                "specifyBody": "json",
+                "jsonBody": self._task_status_body(
+                    execution_ir, task_id=task_id, status=status
                 ),
                 "options": {"timeout": 10000},
             },
@@ -411,8 +470,10 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
         # ID.  Keep the standard node IDs stable for the three registered
         # agents while avoiding collisions if a plan invokes one agent more
         # than once.
-        monitor_entries: dict[str, str] = {}
-        monitor_exits: dict[str, str] = {}
+        agent_entries: dict[str, str] = {}
+        agent_exits: dict[str, str] = {}
+        task_status_starts: dict[str, str] = {}
+        monitor_ends: dict[str, str] = {}
         for node in execution_ir.nodes:
             if node.node_type != "invoke_agent" or node.agent_binding is None:
                 continue
@@ -426,9 +487,11 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
             base_end_id = f"monitor::{agentname}::end"
             start_id = base_start_id
             end_id = base_end_id
-            if start_id in monitor_entries.values() or end_id in monitor_exits.values():
+            if start_id in agent_entries.values() or end_id in monitor_ends.values():
                 start_id = f"{base_start_id}::{node.node_id}"
                 end_id = f"{base_end_id}::{node.node_id}"
+            task_start_id = f"task-orchestrator::{node.node_id}::running"
+            task_finish_id = f"task-orchestrator::{node.node_id}::finish"
             base_position = next(
                 item.get("position", [320, 0])
                 for item in nodes
@@ -440,7 +503,16 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
                     node_id=start_id,
                     agentname=agentname,
                     status="running",
-                    position=[int(base_position[0]) - 160, int(base_position[1])],
+                    position=[int(base_position[0]) - 240, int(base_position[1])],
+                )
+            )
+            nodes.append(
+                self._task_status_node(
+                    execution_ir,
+                    node_id=task_start_id,
+                    task_id=node.node_id,
+                    status="running",
+                    position=[int(base_position[0]) - 120, int(base_position[1])],
                 )
             )
             nodes.append(
@@ -449,11 +521,22 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
                     node_id=end_id,
                     agentname=agentname,
                     status="end",
-                    position=[int(base_position[0]) + 160, int(base_position[1])],
+                    position=[int(base_position[0]) + 120, int(base_position[1])],
                 )
             )
-            monitor_entries[node_name] = start_id
-            monitor_exits[node_name] = end_id
+            nodes.append(
+                self._task_status_node(
+                    execution_ir,
+                    node_id=task_finish_id,
+                    task_id=node.node_id,
+                    status="finish",
+                    position=[int(base_position[0]) + 240, int(base_position[1])],
+                )
+            )
+            agent_entries[node_name] = start_id
+            task_status_starts[node_name] = task_start_id
+            monitor_ends[node_name] = end_id
+            agent_exits[node_name] = task_finish_id
 
         # A workflow-level terminal status is emitted only after all terminal
         # IR paths have completed.  Use the immutable ExecPlan objective as
@@ -508,7 +591,7 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
         by_id = {node.node_id: node for node in execution_ir.nodes}
         for node in execution_ir.nodes:
             target = self._node_name(node.node_id)
-            target_entry = monitor_entries.get(target, target)
+            target_entry = agent_entries.get(target, target)
             if not node.depends_on:
                 if self.config.register_monitor_tree:
                     connect(trigger_name, monitor_tree_id)
@@ -517,28 +600,32 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
             for index, dependency in enumerate(node.depends_on):
                 target_index = index if node.node_type == "join" else 0
                 dependency_name = self._node_name(by_id[dependency].node_id)
-                connect(monitor_exits.get(dependency_name, dependency_name), target_entry, target_index)
+                connect(agent_exits.get(dependency_name, dependency_name), target_entry, target_index)
 
         # The optional registration node is the single entry point for root tasks.
         for node in execution_ir.nodes:
             if not node.depends_on:
                 target = self._node_name(node.node_id)
                 if self.config.register_monitor_tree:
-                    connect(monitor_tree_id, monitor_entries.get(target, target))
+                    connect(monitor_tree_id, agent_entries.get(target, target))
                 else:
-                    connect(trigger_name, monitor_entries.get(target, target))
-                    connect("orchestrator::manual-start", monitor_entries.get(target, target))
+                    connect(trigger_name, agent_entries.get(target, target))
+                    connect("orchestrator::manual-start", agent_entries.get(target, target))
 
-        for node_name, start_id in monitor_entries.items():
-            end_id = monitor_exits[node_name]
-            connect(start_id, node_name)
-            connect(node_name, end_id)
+        for node_name, start_id in agent_entries.items():
+            task_start_id = task_status_starts[node_name]
+            monitor_end_id = monitor_ends[node_name]
+            task_finish_id = agent_exits[node_name]
+            connect(start_id, task_start_id)
+            connect(task_start_id, node_name)
+            connect(node_name, monitor_end_id)
+            connect(monitor_end_id, task_finish_id)
 
         if workflow_join_id is not None:
             for index, terminal in enumerate(terminal_nodes):
                 terminal_name = self._node_name(terminal.node_id)
                 connect(
-                    monitor_exits.get(terminal_name, terminal_name),
+                    agent_exits.get(terminal_name, terminal_name),
                     workflow_join_id,
                     index,
                 )
@@ -546,7 +633,7 @@ class N8nWorkflowCompilerAdapter(WorkflowCompilerPort):
         elif terminal_nodes:
             terminal = terminal_nodes[0]
             terminal_name = self._node_name(terminal.node_id)
-            connect(monitor_exits.get(terminal_name, terminal_name), workflow_end_id)
+            connect(agent_exits.get(terminal_name, terminal_name), workflow_end_id)
         else:
             connect(trigger_name, workflow_end_id)
             connect("orchestrator::manual-start", workflow_end_id)

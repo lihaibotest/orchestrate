@@ -1,0 +1,79 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:orchestrator:planning-blueprint:v4
+title: PlanningBlueprintV4
+type: object
+additionalProperties: false
+required:
+  - schema_version
+  - contract_version
+  - session_id
+  - intent_id
+  - intent_revision
+  - project_id
+  - plan_id
+  - plan_version
+  - created_reason
+  - workflow_version
+  - idempotency_key
+  - registration_snapshot
+  - timeout_policy
+  - retry_policy
+  - goal
+  - tasks
+  - constraints
+  - execution_policy
+properties:
+  schema_version: {const: planning-blueprint.v4}
+  contract_version: {const: orchestration.v2.0}
+  session_id: {type: string, minLength: 1}
+  intent_id: {type: string, minLength: 1}
+  intent_revision: {type: integer, minimum: 1}
+  project_id: {type: string, minLength: 1}
+  plan_id: {type: string, minLength: 1}
+  plan_version: {type: integer, minimum: 1}
+  base_plan_version: {type: integer, minimum: 1}
+  created_reason: {type: string, enum: [INITIAL, REPLAN]}
+  replan_context: {type: object}
+  workflow_version: {type: integer, minimum: 0}
+  idempotency_key: {type: string, minLength: 1}
+  registration_snapshot:
+    type: object
+    additionalProperties: false
+    required: [ref, digest]
+    properties:
+      ref: {type: string, minLength: 1}
+      digest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+  timeout_policy: {type: object}
+  retry_policy: {type: object}
+  goal: {type: object}
+  constraints: {type: object}
+  execution_policy: {type: object}
+  tasks:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      additionalProperties: false
+      required: [task_id, objective, capability_ref, depends_on, input_paths, output_paths, log_path, artifact_path, completion_criteria, iteration, side_effect]
+      properties:
+        task_id: {type: string, minLength: 1}
+        objective: {type: string, minLength: 1}
+        capability_ref: {type: string, minLength: 1}
+        depends_on: {type: array, uniqueItems: true, items: {type: string, minLength: 1}}
+        input_paths:
+          type: object
+          additionalProperties: {type: string, minLength: 1}
+        output_paths:
+          type: object
+          additionalProperties: {type: string, minLength: 1}
+        log_path: {type: string, minLength: 1}
+        artifact_path: {type: string, minLength: 1}
+        completion_criteria: {type: array}
+        iteration:
+          type: object
+          additionalProperties: false
+          required: [enabled, max_iterations]
+          properties:
+            enabled: {type: boolean}
+            max_iterations: {type: integer, minimum: 0}
+        side_effect: {type: string, enum: [read_only, idempotent_write, non_idempotent_write, external_transaction]}

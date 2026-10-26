@@ -1,0 +1,9 @@
+{
+  "test_path": "/home/test/MinIO（复件）/worker-1/cases/test_TP003_test/test_TP003_test.py",
+  "timeout": 120,
+  "generate_allure": true,
+  "use_xvfb": true,
+  "filter_items": false,
+  "item_filepath": "/home/test/MinIO（复件）/test_word_gener_update_v5.0/data/input/test_items.json",
+  "case_filepath": "/home/test/MinIO（复件）/test_word_gener_update_v5.0/data/input/TP003_test_cases.json"
+}

@@ -165,3 +165,10 @@ S4 要求监控、Evaluation、Checkpoint 和终态回传，但 Evaluation 表�
 - ASSUMPTION-BPV3-06：实际上游文件可不在 body 提供 `correlation_id`；Adapter 优先使用可信请求上下文 `X-Correlation-Id`，未提供时以 `session_id` 作为可追踪 fallback，但不把两者视为同一生命周期身份。
 - INTEGRATION-ISSUE-BPV3-02：`task-agent-current-execplan.json` 的 `word-generate.depends_on=case-execute` 不对应任何 task_id，且输入引用 `collect-api-info:api-spec` 不存在。系统按设计返回 `PLAN_DAG_INVALID`，不会猜测或静默改写上游业务语义。
 - INTEGRATION-ISSUE-BPV3-01：工程 source_docs 未找到精确文件名“执行编排智能体总体设计方案_V3.2_格式规范版”；使用同版本 V3.2 docx 与工作区提供文档内容完成适配核对。
+
+## Execution Agent 状态双写假设
+
+- ASSUMPTION-STATUS-01：任务编排状态接口使用已评审的 `POST /api/execution/task-status` 契约；`agentname` 必须是 ExecPlan `tasks[].task_id`，因此编译器使用 Execution IR `node_id`，不使用展示名称或 Artifact Agent 别名。
+- ASSUMPTION-STATUS-02：Monitoring 的终态 `end` 在任务编排契约中显式映射为 `finish`；`plan_version` 按接口要求序列化为十进制字符串，`round_id` 使用 n8n execution ID，`flag` 固定为本地执行值 `0`。
+- ASSUMPTION-STATUS-03：任务编排地址通过 `ORCHESTRATOR_TASK_ORCHESTRATION_ENDPOINT` 配置，当前 Docker-to-host 默认为 `http://172.26.0.1:7000`。状态请求使用服务端已定义的幂等身份，n8n 技术重试不创建新任务状态事实。
+- ASSUMPTION-STATUS-04：工作流根终态仍只发送给 Monitoring，因为根名称不是 `tasks[].task_id`，发送到任务编排会被正确拒绝为未知任务。

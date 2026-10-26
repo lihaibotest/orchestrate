@@ -55,6 +55,8 @@ class ArtifactManagerFixture:
         media_type: str = "application/json",
         schema_ref: str | None = "schema://report/v1",
         expected: ExpectedArtifactOutput | None = None,
+        artifact_namespace: str | None = None,
+        artifact_agent: str | None = None,
     ) -> ArtifactPutRequest:
         return ArtifactPutRequest(
             tenant,
@@ -66,6 +68,8 @@ class ArtifactManagerFixture:
             attempt,
             ProducedArtifact("report", content, media_type, schema_ref),
             expected or self.expected,
+            artifact_namespace,
+            artifact_agent,
         )
 
 
@@ -85,6 +89,19 @@ class ArtifactManagerTests(unittest.TestCase):
         loaded = fixture.manager.get_artifact_metadata("tenant-a", first.artifact_id)
         self.assertEqual((loaded.status, loaded.validation_status), ("VALIDATED", "PASS"))
         self.assertNotIn(b'{"title":"ok"}', repr(loaded).encode())
+
+    def test_agent_namespace_uses_canonical_minio_prefix(self) -> None:
+        fixture = ArtifactManagerFixture()
+        identity = fixture.manager.put_artifact(
+            fixture.request(
+                artifact_namespace="pln_demo_2_35",
+                artifact_agent="worker",
+            )
+        )
+        self.assertIn(
+            "ai-agents/worker/pln_demo_2_35/report/",
+            identity.storage_ref,
+        )
 
     def test_validation_missing_wrong_media_hash_schema_and_schema_ref(self) -> None:
         cases = []

@@ -47,17 +47,29 @@ services:
     image: orchestrator-agent-standalone:1.1.0
     restart: unless-stopped
     environment:
+      # Keep the vendored offline PostgreSQL driver importable.  Do not
+      # override this with `/app/backend` alone at deployment time.
+      PYTHONPATH: /app/backend:/app/vendor/python
       N8N_BASE_URL: ${N8N_BASE_URL:-http://n8n:5678}
+      ORCHESTRATOR_MONITORING_ENDPOINT: ${ORCHESTRATOR_MONITORING_ENDPOINT:-http://172.26.0.1:8080}
+      ORCHESTRATOR_TASK_ORCHESTRATION_ENDPOINT: ${ORCHESTRATOR_TASK_ORCHESTRATION_ENDPOINT:-http://172.26.0.1:7000}
       ORCHESTRATOR_PLANNING_AGENT_BASE_URL: http://planning-agent:18000
+      ORCHESTRATOR_PLANNING_AGENT_HMAC_SECRET_FILE: /run/secrets/planning_agent_hmac
       N8N_GATEWAY_BASE_URL: http://orchestrator-gateway:8080
       ORCHESTRATOR_DATABASE_PATH: /var/lib/orchestrator/orchestrator.sqlite3
       ORCHESTRATOR_POSTGRES_DSN: ${ORCHESTRATOR_POSTGRES_DSN:-}
       ORCHESTRATOR_POSTGRES_SCHEMA: ${ORCHESTRATOR_POSTGRES_SCHEMA:-orchestrator}
       ORCHESTRATOR_REDIS_URL: ${ORCHESTRATOR_REDIS_URL:-}
       ORCHESTRATOR_REDIS_REQUIRED: ${ORCHESTRATOR_REDIS_REQUIRED:-false}
+      ORCHESTRATOR_MINIO_ENDPOINT: ${ORCHESTRATOR_MINIO_ENDPOINT:-http://192.168.137.98:9001}
+      ORCHESTRATOR_MINIO_BUCKET: ${ORCHESTRATOR_MINIO_BUCKET:-orchestrator-artifacts}
+      ORCHESTRATOR_MINIO_ACCESS_KEY_FILE: /run/secrets/minio_access_key
+      ORCHESTRATOR_MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
+      ORCHESTRATOR_MINIO_SECURE: ${ORCHESTRATOR_MINIO_SECURE:-false}
+    secrets: [planning_agent_hmac, minio_access_key, minio_secret_key]
     volumes: [orchestrator-data:/var/lib/orchestrator]
     ports:
-      - "${ORCHESTRATOR_BIND:-127.0.0.1}:${ORCHESTRATOR_PORT:-28020}:8020"
+      - "${ORCHESTRATOR_BIND:-0.0.0.0}:${ORCHESTRATOR_PORT:-28020}:8020"
     networks: [migration]
     depends_on:
       planning-agent: {condition: service_healthy}
@@ -80,3 +92,9 @@ networks:
 secrets:
   gateway_api_key:
     file: "${GATEWAY_API_KEY_FILE:?GATEWAY_API_KEY_FILE is required}"
+  planning_agent_hmac:
+    file: "${ORCHESTRATOR_PLANNING_AGENT_HMAC_SECRET_FILE:?ORCHESTRATOR_PLANNING_AGENT_HMAC_SECRET_FILE is required}"
+  minio_access_key:
+    file: "${ORCHESTRATOR_MINIO_ACCESS_KEY_FILE:?ORCHESTRATOR_MINIO_ACCESS_KEY_FILE is required}"
+  minio_secret_key:
+    file: "${ORCHESTRATOR_MINIO_SECRET_KEY_FILE:?ORCHESTRATOR_MINIO_SECRET_KEY_FILE is required}"

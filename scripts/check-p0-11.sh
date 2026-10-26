@@ -23,6 +23,7 @@ fi
 
 # Historical gates intentionally run without the opt-in 0010 migration.
 env -u P0_11_POSTGRES_DSN -u ORCHESTRATOR_ENABLE_P0_11 \
+  -u P0_12_POSTGRES_DSN -u ORCHESTRATOR_ENABLE_P0_12 \
   P0_10_POSTGRES_DSN="$POSTGRES_DSN" P0_10_PYTHON_BIN="$CHECK_PYTHON" \
   bash "$ROOT_DIR/scripts/check-p0-10.sh"
 

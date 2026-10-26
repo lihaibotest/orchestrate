@@ -348,7 +348,7 @@ class WorkflowCompilerTests(unittest.TestCase):
         parameters = compiled["parameters"]
         self.assertEqual(parameters["options"]["timeout"], 120000)  # type: ignore[index]
 
-    def test_word_agent_monitoring_uses_same_agent_name_for_start_and_end(self) -> None:
+    def test_word_agent_status_is_sent_to_monitoring_and_task_orchestration(self) -> None:
         agent = next(
             item for item in self.execution_ir.nodes if item.node_id == "agent-a"
         )
@@ -369,6 +369,10 @@ class WorkflowCompilerTests(unittest.TestCase):
             nodes["monitor::word_agent::running"]["parameters"]["jsonBody"]
         )
         end_body = str(nodes["monitor::word_agent::end"]["parameters"]["jsonBody"])
+        task_running = nodes["task-orchestrator::agent-a::running"]
+        task_finish = nodes["task-orchestrator::agent-a::finish"]
+        task_running_body = str(task_running["parameters"]["jsonBody"])
+        task_finish_body = str(task_finish["parameters"]["jsonBody"])
 
         self.assertIn('agentname: "word_agent"', running_body)
         self.assertIn('status: "running"', running_body)
@@ -376,6 +380,39 @@ class WorkflowCompilerTests(unittest.TestCase):
         self.assertIn('status: "end"', end_body)
         self.assertNotIn("case-generator", running_body)
         self.assertNotIn("case-executor", end_body)
+        self.assertEqual(
+            task_running["parameters"]["url"],
+            "http://172.26.0.1:7000/api/execution/task-status",
+        )
+        self.assertIn('agentname: "agent-a"', task_running_body)
+        self.assertIn('status: "running"', task_running_body)
+        self.assertIn("flag: 0", task_running_body)
+        self.assertIn('plan_id: "task-compiler"', task_running_body)
+        self.assertIn("plan_version: String(1)", task_running_body)
+        self.assertIn("round_id: String($execution.id)", task_running_body)
+        self.assertIn('agentname: "agent-a"', task_finish_body)
+        self.assertIn('status: "finish"', task_finish_body)
+        self.assertNotIn('status: "end"', task_finish_body)
+        self.assertTrue(task_running["retryOnFail"])
+        self.assertEqual(task_running["maxTries"], 3)
+
+        connections = document["connections"]
+        self.assertEqual(
+            connections["monitor::word_agent::running"]["main"][0][0]["node"],
+            "task-orchestrator::agent-a::running",
+        )
+        self.assertEqual(
+            connections["task-orchestrator::agent-a::running"]["main"][0][0]["node"],
+            "ir::agent-a",
+        )
+        self.assertEqual(
+            connections["ir::agent-a"]["main"][0][0]["node"],
+            "monitor::word_agent::end",
+        )
+        self.assertEqual(
+            connections["monitor::word_agent::end"]["main"][0][0]["node"],
+            "task-orchestrator::agent-a::finish",
+        )
 
     def test_workflow_end_monitor_waits_for_execplan_terminals(self) -> None:
         document = self.compiler.compile(self.execution_ir).mutable_document()

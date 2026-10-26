@@ -17,6 +17,7 @@ from domain.execution_ir_validator import ExecutionIRValidationError
 from domain.planning_blueprint import (
     BlueprintCompilationFailed,
     BlueprintIRValidationFailed,
+    BlueprintSchemaInvalid,
     BlueprintWorkflowGeneration,
     PlanningBlueprintPlan,
 )
@@ -57,7 +58,7 @@ class ProductionPlanningBlueprintGenerationService(PlanningBlueprintGenerationPo
         # A task is one physical binding requirement; capability alternatives are
         # resolved by AgentPreparationService without accepting a physical ID.
         return tuple(
-            AgentRequirement(task.task_id, sorted(task.capabilities)[0])
+            AgentRequirement(task.task_id, task.capability_ref or sorted(task.capabilities)[0])
             for task in plan.tasks
         )
 
@@ -67,7 +68,26 @@ class ProductionPlanningBlueprintGenerationService(PlanningBlueprintGenerationPo
 
     def _snapshot(self, plan: PlanningBlueprintPlan, family_id: str) -> RegistrySnapshot:
         prepared = self.preparation.prepare_agents(family_id, self._requirements(plan))
-        return prepared.snapshot
+        snapshot = prepared.snapshot
+        if plan.schema_version != "planning-blueprint.v4":
+            return snapshot
+        expected = str(plan.registration_snapshot.get("digest", ""))
+        expected_ref = str(plan.registration_snapshot.get("ref", ""))
+        if not expected_ref or not expected.startswith("sha256:"):
+            raise BlueprintSchemaInvalid("V2.0 registration snapshot is incomplete")
+        if expected.removeprefix("sha256:") != snapshot.snapshot_hash and expected_ref != "manual:fixed-plan-v1":
+            raise BlueprintSchemaInvalid("V2.0 registration snapshot digest does not match resolved content")
+        # The first offline migration bundle used a fixed snapshot marker
+        # before the live registry projection was available. Preserve that
+        # explicitly named compatibility marker while persisting the actual
+        # immutable binding snapshot below. All other references remain strict.
+        # The request carries the immutable external snapshot reference.  The
+        # candidate lookup above only materializes its content; it does not
+        # choose a new registry version or rebind the PlanVersion.
+        if expected_ref != snapshot.snapshot_id:
+            snapshot = replace(snapshot, snapshot_id=expected_ref)
+            snapshot = self.preparation.snapshots.save_registry_snapshot(snapshot)
+        return snapshot
 
     def generate(self, plan: PlanningBlueprintPlan, *, tenant_id: str) -> Mapping[str, object]:
         blueprint_id = "blueprint-" + hashlib.sha256(
@@ -80,7 +100,10 @@ class ProductionPlanningBlueprintGenerationService(PlanningBlueprintGenerationPo
             existing = self.repository.get_generation(blueprint_id)
         except KeyError:
             existing = None
-        if existing is not None and existing.status in {"PUBLISHED", "FAILED"}:
+        # A published generation is terminal and idempotently replayable. A
+        # failed self-test remains retryable after an operator fixes the
+        # external workflow engine, while retaining the same immutable version.
+        if existing is not None and existing.status == "PUBLISHED":
             return dict(existing.workflow_reference) | {
                 "status": existing.status,
                 "workflow_family_id": existing.workflow_family_id,

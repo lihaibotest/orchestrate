@@ -241,6 +241,11 @@ class PostgresSelfTestRepository(PostgresControlPlaneRepository):
                     "authorized self-test retry started",
                     metadata,
                 )
+            elif identity.status == "SELF_TESTING":
+                # Crash recovery: the state transition may have committed
+                # before the self_test_run row was inserted. Continue the
+                # same idempotent attempt instead of rejecting the workflow.
+                pass
             else:
                 raise ValueError(
                     f"Workflow Version cannot start Self-Test: {identity.status}"

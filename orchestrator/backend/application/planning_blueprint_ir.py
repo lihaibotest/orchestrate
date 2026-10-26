@@ -30,6 +30,24 @@ def _retry_policy(value: Mapping[str, object]) -> RetryPolicy:
 def _artifact_declarations(plan: PlanningBlueprintPlan) -> tuple[ArtifactDeclaration, ...]:
     declarations: list[ArtifactDeclaration] = []
     for task in plan.tasks:
+        # V2.0 is path-only.  Its output paths are execution resources, not
+        # V1.1 artifact declarations carrying schema/storage metadata.
+        if plan.schema_version == "planning-blueprint.v4":
+            # Path-only plans still need declarations for the stable artifact
+            # identities used by downstream WHOLE_ARTIFACT bindings.  Keep
+            # the declaration intentionally metadata-light; the agent owns
+            # the actual path and content contract at runtime.
+            for output_name in sorted(task.output_paths):
+                declarations.append(
+                    ArtifactDeclaration(
+                        artifact_id=f"{task.task_id}:{output_name}",
+                        producer_node_id=task.task_id,
+                        output_name=output_name,
+                        schema={"type": "object"},
+                        reusable=False,
+                    )
+                )
+            continue
         for name, metadata in sorted(task.outputs.items()):
             details = metadata if isinstance(metadata, Mapping) else {"value": metadata}
             schema = details.get("schema", {"type": "object"})
@@ -66,8 +84,10 @@ def _artifact_declarations(plan: PlanningBlueprintPlan) -> tuple[ArtifactDeclara
     return tuple(declarations)
 
 
-def _input_sources(inputs: Mapping[str, object]) -> dict[str, str]:
+def _input_sources(inputs: Mapping[str, object], input_paths: Mapping[str, str] | None = None) -> dict[str, str]:
     sources: dict[str, str] = {}
+    if input_paths:
+        return {str(key): f"registered.path.{value}" for key, value in input_paths.items()}
     for key, value in inputs.items():
         if isinstance(value, Mapping) and value.get("binding_mode") == "WHOLE_ARTIFACT":
             source_task_id = value.get("source_task_id")
@@ -89,7 +109,7 @@ def build_execution_ir(
     nodes: list[IRNode] = []
     for task in plan.tasks:
         candidates = sorted(
-            (item for item in bindings if item.capability in task.capabilities),
+            (item for item in bindings if item.capability in {task.capability_ref, *task.capabilities}),
             key=lambda item: (item.requirement_id, item.agent_id, item.version),
         )
         if not candidates:
@@ -116,19 +136,26 @@ def build_execution_ir(
                 depends_on=task.depends_on,
                 input_contract=DataContract(
                     schema=binding.input_schema,
-                    sources=_input_sources(task.inputs),
+                    sources=_input_sources(task.inputs, task.input_paths),
                 ),
                 output_contract=DataContract(
                     schema=binding.output_schema,
-                    sources={str(key): f"artifact.{task.task_id}:{key}" for key in task.outputs},
+                    sources=(
+                        {str(key): f"registered.path.{value}" for key, value in task.output_paths.items()}
+                        if task.output_paths
+                        else {str(key): f"artifact.{task.task_id}:{key}" for key in task.outputs}
+                    ),
                 ),
                 completion_criteria=task.completion_criteria,
                 artifact_policy=ArtifactPolicy(
-                    produces=tuple(f"{task.task_id}:{key}" for key in task.outputs),
+                    produces=tuple(
+                        f"{task.task_id}:{key}"
+                        for key in (task.output_paths if plan.schema_version == "planning-blueprint.v4" else task.outputs)
+                    ),
                     consumes=tuple(
                         sorted(
                             source.removeprefix("artifact.")
-                            for source in _input_sources(task.inputs).values()
+                            for source in _input_sources(task.inputs, task.input_paths).values()
                             if source.startswith("artifact.")
                         )
                     ),
@@ -139,14 +166,19 @@ def build_execution_ir(
                 retry_policy=_retry_policy(task.retry_policy),
             )
         )
+    objective = plan.goal.get("objective")
+    if objective is not None and not str(objective).strip():
+        objective = None
     return ExecutionIR(
         ir_version="1.0",
         workflow_family_id=workflow_family_id,
         workflow_version=workflow_version,
+        plan_version=plan.plan_version,
         task_id=plan.plan_id,
         registry_snapshot_id=snapshot.snapshot_id,
         nodes=tuple(nodes),
         edges=tuple(IREdge(dep, task.task_id) for task in plan.tasks for dep in task.depends_on),
         completion_criteria=plan.completion_criteria,
         artifacts=_artifact_declarations(plan),
+        objective=None if objective is None else str(objective),
     )

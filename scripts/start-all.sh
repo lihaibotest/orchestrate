@@ -15,6 +15,18 @@ NETWORK_NAME="${REGISTRY_NETWORK_NAME:-orchestrator_shared}"
 docker network inspect "$NETWORK_NAME" >/dev/null 2>&1 || docker network create "$NETWORK_NAME" >/dev/null
 if [ -x "$ROOT_DIR/scripts/load-migration-images.sh" ]; then "$ROOT_DIR/scripts/load-migration-images.sh"; fi
 "${REGISTRY_COMPOSE[@]}" up -d --no-build
+# The bundled n8n worker may be managed by the external agent stack. Attach it
+# to every network used by the registry agents so HTTP Request nodes can resolve
+# wordagent/pytestproject/reportagent after a host restart.
+AGENT_WORD_CONTAINER="${AGENT_WORD_CONTAINER:-wordagent}"
+if ! docker inspect "$AGENT_WORD_CONTAINER" >/dev/null 2>&1; then
+  AGENT_WORD_CONTAINER="$(docker ps --filter name=wordagent --format '{{.Names}}' | head -1)"
+fi
+if docker inspect worker-fresh >/dev/null 2>&1 && [ -n "$AGENT_WORD_CONTAINER" ]; then
+  for agent_network in $(docker inspect -f '{{range $name, $config := .NetworkSettings.Networks}}{{$name}} {{end}}' "$AGENT_WORD_CONTAINER" 2>/dev/null || true); do
+    docker network connect "$agent_network" worker-fresh >/dev/null 2>&1 || true
+  done
+fi
 for service in postgres n8n wordagent pytestproject reportagent filter-library-api filter-library-ui; do
   "${REGISTRY_COMPOSE[@]}" ps --status running "$service" >/dev/null 2>&1 || true
 done

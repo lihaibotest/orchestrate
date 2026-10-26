@@ -79,13 +79,17 @@ else
       P0_01_PROJECT_ROOT="$ROOT_DIR" "$CHECK_PYTHON" -m unittest discover \
         -s "$ROOT_DIR/tests/p0_12" -p 'test_*.py' -v
   else
-    run_group p0_02_to_p0_11_regression env \
+    # Keep the historical P0-02..P0-11 gate on its own migration boundary.
+    # P0_12_POSTGRES_DSN is intentionally set for the following P0-12 group;
+    # leaking it here makes older suites apply migration 0011 and fail their
+    # stage-specific latest-version assertions.
+    run_group p0_02_to_p0_11_regression env -u P0_12_POSTGRES_DSN -u ORCHESTRATOR_ENABLE_P0_12 \
       P0_11_POSTGRES_DSN="$POSTGRES_DSN" P0_11_PYTHON_BIN="$CHECK_PYTHON" \
       bash "$ROOT_DIR/scripts/check-p0-11.sh"
     run_group p0_12_fake_and_postgres env \
       PYTHONPATH="$VENDORED_PYTHON:$ROOT_DIR/orchestrator/backend:$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}" \
       P0_01_PROJECT_ROOT="$ROOT_DIR" P0_12_POSTGRES_DSN="$POSTGRES_DSN" \
-      ORCHESTRATOR_ENABLE_P0_11=1 "$CHECK_PYTHON" -m unittest discover \
+      ORCHESTRATOR_ENABLE_P0_12=1 "$CHECK_PYTHON" -m unittest discover \
         -s "$ROOT_DIR/tests/p0_12" -p 'test_*.py' -v
     if [[ "${STATUSES[${#STATUSES[@]}-1]}" -ne 0 ]]; then
       postgres_status="FAIL"
@@ -162,7 +166,7 @@ report = {
     "conclusion": conclusion,
     "mode": os.environ.get("MODE"),
     "generated_at": datetime.now(timezone.utc).isoformat(),
-    "migration_version": 10 if os.environ.get("postgres_status") == "PASS" else None,
+    "migration_version": 11 if os.environ.get("postgres_status") == "PASS" else None,
     "postgres": os.environ.get("postgres_status"),
     "external": os.environ.get("external_status"),
     "groups": records,
@@ -184,7 +188,7 @@ markdown = [
     f"- Conclusion: **{conclusion}**",
     f"- Mode: `{report['mode']}`",
     f"- Generated: `{report['generated_at']}`",
-    f"- Migration: `{report['postgres']}` (expected latest version 10)",
+    f"- Migration: `{report['postgres']}` (expected latest version 11)",
     f"- External E2E: `{report['external']}`",
     "",
     "## Baseline",

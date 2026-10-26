@@ -175,10 +175,26 @@ class ArtifactPutRequest:
     attempt_no: int
     output: ProducedArtifact
     expected: ExpectedArtifactOutput
+    # Optional execution-scoped namespace supplied by the Workflow compiler.
+    # Keeping it optional preserves compatibility with pre-existing artifact
+    # records while allowing Agent-produced files to use the canonical
+    # ``ai-agents/{agent}/{plan_id}_{plan_version}_{execution_id}/`` prefix.
+    artifact_namespace: str | None = None
+    artifact_agent: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("tenant_id", "workflow_family_id", "execution_id", "node_id"):
             object.__setattr__(self, name, _required(getattr(self, name), name))
+        object.__setattr__(
+            self,
+            "artifact_namespace",
+            None if self.artifact_namespace is None else safe_storage_segment(self.artifact_namespace, "artifact_namespace"),
+        )
+        object.__setattr__(
+            self,
+            "artifact_agent",
+            None if self.artifact_agent is None else safe_storage_segment(self.artifact_agent, "artifact_agent"),
+        )
         if self.workflow_version < 1 or self.attempt_no < 1:
             raise ValueError("workflow_version and attempt_no must be positive")
         if self.execution_mode not in EXECUTION_MODES:

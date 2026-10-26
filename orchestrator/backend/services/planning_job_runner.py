@@ -196,6 +196,11 @@ class PlanningJobRunner:
                 built.ir,
                 {
                     **self.compiler_context,
+                    # Keep the upstream Plan identity separate from the
+                    # n8n execution identity.  The former is stable across
+                    # replays; the latter is appended at run time to form
+                    # the per-workflow Agent artifact namespace.
+                    "plan_id": normalized.blueprint.plan_id,
                     "bindings": compiler_bindings,
                     "evaluation_enabled": evaluation_enabled,
                     "evaluator_binding": evaluator_binding,
@@ -225,6 +230,7 @@ class PlanningJobRunner:
                 workflow_version=1,
                 artifact=artifact,
                 start_payload={
+                    "plan_id": normalized.blueprint.plan_id,
                     "idempotency_key": normalized.blueprint.idempotency_key,
                     "query": "登录" if "登录" in normalized.blueprint.goal.objective else normalized.blueprint.goal.objective,
                     "user_intent": normalized.blueprint.goal.objective,
@@ -233,7 +239,7 @@ class PlanningJobRunner:
             )
             result = {
                 "status": "started",
-                "plan_id": f"plan-{job_id}",
+                "plan_id": normalized.blueprint.plan_id,
                 "ir_hash": built.ir.metadata.ir_hash,
                 "workflow_id": published["workflow_id"],
                 "execution_id": published["execution_id"],

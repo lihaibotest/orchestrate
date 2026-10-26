@@ -64,6 +64,7 @@ class OrchestratorSettings:
     otel_endpoint: str = ""
     readiness_require_external_control: bool = False
     request_id_header: str = "X-Request-ID"
+    execution_submit_token_file: str = ""
 
     v2_enabled: bool = False
     v2_agent_allowed_hosts: tuple[str, ...] = ()
@@ -80,6 +81,8 @@ class OrchestratorSettings:
     n8n_webhook_path_secret_file: str = ""
     n8n_webhook_auth_header: str = "X-Orchestrator-Webhook"
     n8n_webhook_auth_value_file: str = ""
+    monitoring_endpoint: str = "http://172.26.0.1:8080"
+    task_orchestration_endpoint: str = "http://172.26.0.1:7000"
     gateway_mutation_timeout_seconds: float = 180.0
     self_test_max_repair_attempts: int = 3
 
@@ -166,6 +169,7 @@ class OrchestratorSettings:
                 "ORCHESTRATOR_READINESS_REQUIRE_EXTERNAL_CONTROL", False
             ),
             request_id_header=_env("ORCHESTRATOR_REQUEST_ID_HEADER", cls.request_id_header),
+            execution_submit_token_file=_env("ORCHESTRATOR_EXECUTION_SUBMIT_TOKEN_FILE"),
             v2_enabled=_bool("ORCHESTRATOR_V2_ENABLED", False),
             v2_agent_allowed_hosts=tuple(
                 item.lower() for item in _csv("ORCHESTRATOR_V2_AGENT_ALLOWED_HOSTS")
@@ -192,6 +196,13 @@ class OrchestratorSettings:
                 "N8N_WEBHOOK_AUTH_HEADER", cls.n8n_webhook_auth_header
             ),
             n8n_webhook_auth_value_file=_env("N8N_WEBHOOK_AUTH_VALUE_FILE"),
+            monitoring_endpoint=_env(
+                "ORCHESTRATOR_MONITORING_ENDPOINT", cls.monitoring_endpoint
+            ),
+            task_orchestration_endpoint=_env(
+                "ORCHESTRATOR_TASK_ORCHESTRATION_ENDPOINT",
+                cls.task_orchestration_endpoint,
+            ),
             gateway_mutation_timeout_seconds=_float(
                 "ORCHESTRATOR_GATEWAY_MUTATION_TIMEOUT_SECONDS", 180.0, minimum=0.1
             ),

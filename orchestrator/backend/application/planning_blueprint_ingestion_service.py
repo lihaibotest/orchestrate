@@ -4,6 +4,7 @@ import hashlib
 from typing import Mapping
 
 from adapters.planning_blueprint_v3_adapter import PlanningBlueprintV3Adapter
+from adapters.planning_blueprint_v4_adapter import PlanningBlueprintV4Adapter
 from domain.planning_blueprint import (
     BlueprintIdempotencyConflict,
     BlueprintIngestionResult,
@@ -21,10 +22,12 @@ class PlanningBlueprintIngestionService:
         repository: PlanningBlueprintRepositoryPort,
         *,
         adapter: PlanningBlueprintV3Adapter | None = None,
+        v4_adapter: PlanningBlueprintV4Adapter | None = None,
         generation: PlanningBlueprintGenerationPort | None = None,
     ) -> None:
         self.repository = repository
         self.adapter = adapter or PlanningBlueprintV3Adapter()
+        self.v4_adapter = v4_adapter or PlanningBlueprintV4Adapter()
         self.generation = generation
 
     @staticmethod
@@ -42,14 +45,25 @@ class PlanningBlueprintIngestionService:
         *,
         tenant_id: str,
         correlation_id: str | None = None,
+        traceparent: str | None = None,
+        tracestate: str | None = None,
         idempotency_key: str | None = None,
     ) -> BlueprintIngestionResult:
-        plan = self.adapter.adapt(
-            payload,
-            tenant_id=tenant_id,
-            correlation_id=correlation_id,
-            idempotency_key=idempotency_key,
-        )
+        if payload.get("schema_version") == "planning-blueprint.v4":
+            plan = self.v4_adapter.adapt(
+                payload,
+                tenant_id=tenant_id,
+                traceparent=traceparent,
+                tracestate=tracestate,
+                idempotency_key=idempotency_key,
+            )
+        else:
+            plan = self.adapter.adapt(
+                payload,
+                tenant_id=tenant_id,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+            )
         blueprint_id = self.blueprint_id(plan, tenant_id)
         created, existing = self.repository.save_or_replay_blueprint(
             plan, tenant_id=tenant_id, blueprint_id=blueprint_id
@@ -57,7 +71,11 @@ class PlanningBlueprintIngestionService:
         if not created:
             if existing is None:
                 raise BlueprintIdempotencyConflict("existing blueprint result is unavailable")
-            if self.generation is None or existing.workflow_reference:
+            # A published reference is terminal. Failed generation results
+            # remain replayable so a corrected external engine can complete
+            # the same immutable PlanVersion without changing its idempotency
+            # identity.
+            if self.generation is None or existing.workflow_reference.get("stage") == "PUBLISHED":
                 return existing
         family_id: str | None = None
         workflow_version: int | None = None

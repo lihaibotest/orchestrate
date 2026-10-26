@@ -25,6 +25,8 @@
 
 **P0-12 E2E**：Plan→Snapshot→IR→SelfTest→Publish→Execution→Runtime Event→ArtifactRef→terminal→CMM Outbox。DoD：`scripts/check-p0-12.sh` 通过 migration up/down、P0-02～P0-11 全量回归、INT-01B happy path 和 Blueprint/Execute replay、Publish/Execute response loss、Runtime Event duplicate/missing、Agent stalled、Artifact hash mismatch、CMM disconnect/publisher recovery 六个故障场景；输出结构化 JSON/Markdown 报告。真实 n8n/Agent/MinIO/CMM 依赖缺失时必须报告 `BLOCKED_EXTERNAL`，不得以 Fake 结果冒充；仅编排既有 ports，不新增产品功能。
 
+**ExecPlan V2.0 接口适配**：在不改变 P0-01～P0-12 执行语义的前提下接入 `planning-blueprint.v4` / `orchestration.v2.0` path-only 请求；保留 V3 历史兼容，冻结注册快照摘要、四类路径、PlanVersion 血缘和固定幂等键。V2.0 的跨 Task 路径交接及正式 Submit wire 仍受规范第 18 节开放项约束，不在本阶段发明协议。
+
 ## P1 — 增量恢复
 P1-01 Checkpoint/input_fingerprint；P1-02 Evaluation/quality/reusable；P1-03 invalidation/downstream closure/Resume Root；P1-04 PATCH 新版本谱系与 reused_nodes/invalidated_nodes。DoD：V1 前序成功、后序低质量时 V2 不重跑可信前序节点。
 

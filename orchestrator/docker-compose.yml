@@ -50,12 +50,17 @@ services:
       network: none
     restart: unless-stopped
     environment:
+      # Keep the vendored offline PostgreSQL driver importable.  Do not
+      # override this with `/app/backend` alone at deployment time.
+      PYTHONPATH: /app/backend:/app/vendor/python
       N8N_BASE_URL: ${N8N_BASE_URL:-http://n8n:5678}
       N8N_API_KEY_FILE: /run/secrets/n8n_api_key
       N8N_WEBHOOK_AUTH_HEADER: ${N8N_WEBHOOK_AUTH_HEADER:-X-Orchestrator-Webhook}
       N8N_WEBHOOK_CREDENTIAL_REF: ${N8N_WEBHOOK_CREDENTIAL_REF:?N8N_WEBHOOK_CREDENTIAL_REF is required}
       N8N_WEBHOOK_PATH_SECRET_FILE: /run/secrets/n8n_webhook_path_secret
       N8N_WEBHOOK_AUTH_VALUE_FILE: /run/secrets/n8n_webhook_auth_value
+      ORCHESTRATOR_MONITORING_ENDPOINT: ${ORCHESTRATOR_MONITORING_ENDPOINT:-http://172.26.0.1:8080}
+      ORCHESTRATOR_TASK_ORCHESTRATION_ENDPOINT: ${ORCHESTRATOR_TASK_ORCHESTRATION_ENDPOINT:-http://172.26.0.1:7000}
       ORCHESTRATOR_PLANNING_AGENT_BASE_URL: ${ORCHESTRATOR_PLANNING_AGENT_BASE_URL:-http://planning-agent:18000}
       ORCHESTRATOR_WORKFLOW_LLM_BASE_URL: ${ORCHESTRATOR_WORKFLOW_LLM_BASE_URL:?workflow LLM URL is required}
       ORCHESTRATOR_WORKFLOW_LLM_API_KEY_FILE: /run/secrets/workflow_llm_api_key
@@ -70,18 +75,23 @@ services:
       ORCHESTRATOR_POSTGRES_SCHEMA: ${ORCHESTRATOR_POSTGRES_SCHEMA:-orchestrator}
       ORCHESTRATOR_REDIS_URL: ${ORCHESTRATOR_REDIS_URL:-}
       ORCHESTRATOR_REDIS_REQUIRED: ${ORCHESTRATOR_REDIS_REQUIRED:-false}
+      ORCHESTRATOR_MINIO_ENDPOINT: ${ORCHESTRATOR_MINIO_ENDPOINT:-http://192.168.137.98:9001}
+      ORCHESTRATOR_MINIO_BUCKET: ${ORCHESTRATOR_MINIO_BUCKET:-orchestrator-artifacts}
+      ORCHESTRATOR_MINIO_ACCESS_KEY_FILE: /run/secrets/minio_access_key
+      ORCHESTRATOR_MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
+      ORCHESTRATOR_MINIO_SECURE: ${ORCHESTRATOR_MINIO_SECURE:-false}
       ORCHESTRATOR_V2_ENABLED: ${ORCHESTRATOR_V2_ENABLED:-false}
       ORCHESTRATOR_V2_AGENT_ALLOWED_HOSTS: ${ORCHESTRATOR_V2_AGENT_ALLOWED_HOSTS:-}
       ORCHESTRATOR_V2_ALLOWED_PRIVATE_CIDRS: ${ORCHESTRATOR_V2_ALLOWED_PRIVATE_CIDRS:-}
       N8N_GATEWAY_CREDENTIAL_REF: ${N8N_GATEWAY_CREDENTIAL_REF:-orchestrator-gateway}
-    secrets: [n8n_api_key, planning_agent_hmac, n8n_hmac, n8n_webhook_path_secret, n8n_webhook_auth_value, workflow_llm_api_key]
+    secrets: [n8n_api_key, planning_agent_hmac, n8n_hmac, n8n_webhook_path_secret, n8n_webhook_auth_value, workflow_llm_api_key, minio_access_key, minio_secret_key]
     read_only: true
     tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
     volumes:
       - orchestrator-data:/var/lib/orchestrator
-    ports: ["127.0.0.1:${ORCHESTRATOR_PORT:-18020}:8020"]
+    ports: ["${ORCHESTRATOR_BIND:-0.0.0.0}:${ORCHESTRATOR_PORT:-18020}:8020"]
     networks: [registry_internal]
     depends_on:
       planning-agent:
@@ -116,3 +126,7 @@ secrets:
     file: "${N8N_WEBHOOK_AUTH_VALUE_FILE:?webhook auth value file is required}"
   workflow_llm_api_key:
     file: "${ORCHESTRATOR_WORKFLOW_LLM_API_KEY_FILE:?workflow LLM API key file is required}"
+  minio_access_key:
+    file: "${ORCHESTRATOR_MINIO_ACCESS_KEY_FILE:?MinIO access key file is required}"
+  minio_secret_key:
+    file: "${ORCHESTRATOR_MINIO_SECRET_KEY_FILE:?MinIO secret key file is required}"

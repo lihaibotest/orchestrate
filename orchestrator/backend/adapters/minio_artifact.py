@@ -103,6 +103,24 @@ class MinioArtifactAdapter(ArtifactManagerPort):
 
     @staticmethod
     def _key(request: ArtifactPutRequest, artifact_id: str) -> str:
+        if request.artifact_namespace is not None:
+            # Agent-facing artifacts use a single, execution-scoped prefix.
+            # ``artifact_namespace`` is immutable for a workflow execution,
+            # so retries remain in the same folder while stable artifact IDs
+            # continue to make individual objects idempotent.
+            agent = safe_storage_segment(
+                request.artifact_agent or request.node_id,
+                "artifact_agent",
+            )
+            return "/".join(
+                (
+                    "ai-agents",
+                    agent,
+                    request.artifact_namespace,
+                    safe_storage_segment(request.output.output_name, "output_name"),
+                    artifact_id,
+                )
+            )
         parts = (
             safe_storage_segment(request.tenant_id, "tenant_id"),
             request.execution_mode.lower(),

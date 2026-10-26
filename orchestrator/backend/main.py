@@ -21,7 +21,7 @@ from application.container import ApplicationContainer, build_container
 from api.executions import create_execution_router
 from api.artifacts import create_artifact_router
 from api.runtime_events import create_runtime_event_router
-from api.planning_blueprints import create_planning_blueprint_router
+from api.planning_blueprints import create_execution_submit_router, create_planning_blueprint_router
 from infrastructure.config import OrchestratorSettings
 from infrastructure.logging import configure_logging
 
@@ -50,12 +50,14 @@ def create_app(
     LOGGER.info("orchestrator application initialized", extra={"service_name": resolved_settings.service_name})
     control = app_container.external_control()
     v2_ready = app_container.v2_gateway_ready()
+    planning_blueprint_service = app_container.planning_blueprint_service()
     app.include_router(
         create_v2_router(
             repository,
             settings=resolved_settings,
             gateway_ready=v2_ready,
             on_terminal_event=app_container.drain_outbox,
+            planning_blueprint_service=planning_blueprint_service,
         )
     )
     execution_controller = app_container.execution_controller()
@@ -67,9 +69,22 @@ def create_app(
     runtime_events = app_container.runtime_event_service()
     if runtime_events is not None:
         app.include_router(create_runtime_event_router(runtime_events))
-    planning_blueprint_service = app_container.planning_blueprint_service()
     if planning_blueprint_service is not None:
+        execution_submit_token = (
+            resolved_settings.read_secret(
+                resolved_settings.execution_submit_token_file,
+                setting_name="ORCHESTRATOR_EXECUTION_SUBMIT_TOKEN_FILE",
+            )
+            if resolved_settings.execution_submit_token_file
+            else None
+        )
         app.include_router(create_planning_blueprint_router(planning_blueprint_service))
+        app.include_router(
+            create_execution_submit_router(
+                planning_blueprint_service,
+                bearer_token=execution_submit_token,
+            )
+        )
     publisher = app_container.workflow_publisher()
     planning_worker = app_container.planning_worker(gateway_ready=v2_ready)
 

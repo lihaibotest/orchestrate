@@ -14,6 +14,17 @@ from services.blueprint_v2_service import BlueprintV2Service
 from services.ir_repair_service import redact
 from runtime.supervisor import RuntimeSupervisor
 from runtime.budget import BudgetManager
+from application.planning_blueprint_ingestion_service import PlanningBlueprintIngestionService
+from domain.planning_blueprint import (
+    BlueprintCompilationFailed,
+    BlueprintIdempotencyConflict,
+    BlueprintIRValidationFailed,
+    BlueprintSchemaInvalid,
+    BlueprintSecretPresent,
+    CapabilityInvalid,
+    PlanDagInvalid,
+    PlanningBlueprintError,
+)
 
 
 def create_v2_router(
@@ -22,6 +33,7 @@ def create_v2_router(
     settings: object,
     gateway_ready: bool,
     on_terminal_event: Callable[[], None] | None = None,
+    planning_blueprint_service: PlanningBlueprintIngestionService | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v2")
     plans = ExecutionPlanRepository(repository.database_path)
@@ -33,13 +45,79 @@ def create_v2_router(
         authenticated = await authenticate(
             request, endpoint_permission="blueprint", repository=repository, settings=settings
         )
-        if not gateway_ready:
-            raise HTTPException(status_code=503, detail="V2_NOT_READY: compatible n8n gateway capability contract is unavailable")
         try:
             raw = json.loads(authenticated.body.decode("utf-8"))
             if not isinstance(raw, dict):
                 raise ValueError("blueprint body must be an object")
+
+            # The task-orchestration service uses this endpoint as its wire
+            # boundary.  Accept the current planning-blueprint.v3/v4 artifact
+            # here, while retaining the original planning-blueprint.v2 queue
+            # contract for existing callers.
+            submitted = raw.get("exec_plan") if "exec_plan" in raw else raw
+            is_exec_plan = isinstance(submitted, dict) and submitted.get("schema_version") in {
+                "planning-blueprint.v3",
+                "planning-blueprint.v4",
+            }
+            if is_exec_plan:
+                if planning_blueprint_service is None:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="PLANNING_BLUEPRINT_NOT_READY: durable planning blueprint service is unavailable",
+                    )
+                if "exec_plan" in raw:
+                    unknown = set(raw) - {"exec_plan", "launch_context"}
+                    if unknown:
+                        raise ValueError(
+                            "unknown submit fields: " + ", ".join(sorted(unknown))
+                        )
+                    launch_context = raw.get("launch_context")
+                    if launch_context is not None and not isinstance(launch_context, dict):
+                        raise ValueError("launch_context must be an object")
+                    if isinstance(launch_context, dict) and "evaluation_id" in launch_context:
+                        raise ValueError(
+                            "evaluation_id is not allowed for V2.0 Monitoring submit"
+                        )
+                # The signed v2 planning-agent contract predates the tenant
+                # header.  Preserve that wire contract and use the explicit
+                # header when a deployment provides tenant scoping.
+                tenant_id = request.headers.get("X-Tenant-Id", "default").strip() or "default"
+                result = planning_blueprint_service.ingest(
+                    submitted,
+                    tenant_id=tenant_id,
+                    correlation_id=authenticated.correlation_id,
+                    traceparent=request.headers.get("traceparent")
+                    or authenticated.correlation_id,
+                    tracestate=request.headers.get("tracestate"),
+                    idempotency_key=request.headers.get("Idempotency-Key"),
+                )
+                return result.as_dict()
+
+            if not gateway_ready:
+                raise HTTPException(status_code=503, detail="V2_NOT_READY: compatible n8n gateway capability contract is unavailable")
             normalized = normalize_blueprint(raw)
+        except BlueprintIdempotencyConflict as error:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": error.error_code, "message": str(error)},
+            ) from error
+        except (
+            BlueprintSecretPresent,
+            BlueprintSchemaInvalid,
+            CapabilityInvalid,
+            PlanDagInvalid,
+            BlueprintIRValidationFailed,
+            BlueprintCompilationFailed,
+        ) as error:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": error.error_code, "message": str(error)},
+            ) from error
+        except PlanningBlueprintError as error:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": error.error_code, "message": str(error)},
+            ) from error
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError, NormalizationError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         if authenticated.correlation_id != normalized.blueprint.correlation_id:

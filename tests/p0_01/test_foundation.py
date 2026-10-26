@@ -131,6 +131,8 @@ class FoundationTests(unittest.TestCase):
                 "N8N_BASE_URL": "http://n8n:5678",
                 "N8N_GATEWAY_CREDENTIAL_REF": "gateway-ref",
                 "N8N_WEBHOOK_CREDENTIAL_REF": "webhook-ref",
+                "ORCHESTRATOR_MONITORING_ENDPOINT": "http://monitoring.internal:8080",
+                "ORCHESTRATOR_TASK_ORCHESTRATION_ENDPOINT": "http://task.internal:7000",
                 "ORCHESTRATOR_RANK_COST_WEIGHT": "2",
                 "ORCHESTRATOR_RANK_LATENCY_WEIGHT": "3",
                 "ORCHESTRATOR_PLANNING_AGENT_HMAC_SECRET_FILE": "/secrets/planning",
@@ -147,6 +149,10 @@ class FoundationTests(unittest.TestCase):
         self.assertEqual(settings.reasoner_deadline_seconds, 42.5)
         self.assertEqual(settings.n8n_gateway_credential_ref, "gateway-ref")
         self.assertEqual(settings.n8n_webhook_credential_ref, "webhook-ref")
+        self.assertEqual(settings.monitoring_endpoint, "http://monitoring.internal:8080")
+        self.assertEqual(
+            settings.task_orchestration_endpoint, "http://task.internal:7000"
+        )
         self.assertEqual((settings.rank_cost_weight, settings.rank_latency_weight), (2, 3))
         self.assertEqual(settings.planning_agent_hmac_secret_file, "/secrets/planning")
         self.assertEqual(settings.n8n_hmac_secret_file, "/secrets/n8n")

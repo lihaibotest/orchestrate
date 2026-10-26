@@ -6,6 +6,20 @@ This document fixes the inter-agent boundaries for standalone Orchestrator 1.1.0
 
 Every state-changing or state-reporting v2 message carries `correlation_id`, `session_id`, `plan_version`, `workflow_version`, and `idempotency_key`. Initial blueprints use workflow version zero. Published executions use immutable workflow and backend execution identities.
 
+Compiled business-agent requests additionally carry the immutable Plan identity
+and the execution-scoped MinIO prefix: `plan_id`, `plan_version`,
+`execution_id`, `artifact_namespace`, and `artifact_root` (also exposed as
+`artifact_path`). Agents must upload their outputs below
+`ai-agents/{agent}/{plan_id}_{plan_version}_{execution_id}/` and return the
+resulting object reference. `execution_id` is the n8n execution identity and
+must not be substituted with `run_id`.
+
+The task-orchestration ingress is `POST /api/v2/blueprints`. It accepts the
+signed `planning-agent` V2 envelope and, for the execution-plan migration,
+also accepts `planning-blueprint.v3`/`planning-blueprint.v4` directly or inside
+an `exec_plan` wrapper. The former `/api/execution/v1/runs` route remains only
+as a compatibility alias.
+
 ## Boundary Owners
 
 - The planning agent sends Planning Blueprint v2, receives evaluator opinions through the evaluator-owned direct channel, receives Orchestrator escalation/fallback facts through two separate Orchestrator-owned channels, and may send explicit external directives. It never selects endpoints or credentials.
